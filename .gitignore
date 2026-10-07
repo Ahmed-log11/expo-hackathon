@@ -1,0 +1,23 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node / mobile
+node_modules/
+.expo/
+dist/
+build/
+
+# Simulation output and large model files
+sim/output/
+ml/models/*.joblib
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
