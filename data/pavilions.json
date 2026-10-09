@@ -1,0 +1,531 @@
+{
+  "meta": {
+    "version": "draft-1",
+    "notes": [
+      "Layout is illustrative: districts follow the five official sub-themes; country placement is assumed (not official).",
+      "x, y are on a 0-100 grid. Centre (50,50) is the Expo Icon. y grows downward (screen coordinates).",
+      "capacity_per_hour, avg_visit_min and popularity are estimates based on past Expos.",
+      "has_queue=false places are landmarks used for directions and start points, not queued attractions.",
+      "on_loop=true marks places on the Loop of Nations (main walkway) for paths.json."
+    ]
+  },
+  "districts": [
+    {
+      "id": "technology",
+      "name_en": "Technology",
+      "name_ar": "التقنية"
+    },
+    {
+      "id": "planet",
+      "name_en": "Planet",
+      "name_ar": "الكوكب"
+    },
+    {
+      "id": "humanity",
+      "name_en": "Humanity",
+      "name_ar": "الإنسانية"
+    },
+    {
+      "id": "culture",
+      "name_en": "Culture",
+      "name_ar": "الثقافة"
+    },
+    {
+      "id": "collaboration",
+      "name_en": "Collaboration",
+      "name_ar": "التعاون"
+    }
+  ],
+  "places": [
+    {
+      "id": "th_technology",
+      "name_en": "Technology Pavilion",
+      "name_ar": "جناح التقنية",
+      "type": "thematic",
+      "district": "technology",
+      "x": 50.0,
+      "y": 20.0,
+      "capacity_per_hour": 1800,
+      "avg_visit_min": 30,
+      "popularity": 5,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "technology"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "jp",
+      "name_en": "Japan Pavilion",
+      "name_ar": "جناح اليابان",
+      "type": "country",
+      "district": "technology",
+      "x": 41.1,
+      "y": 29.9,
+      "capacity_per_hour": 900,
+      "avg_visit_min": 20,
+      "popularity": 5,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "technology",
+        "culture"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "kr",
+      "name_en": "South Korea Pavilion",
+      "name_ar": "جناح كوريا الجنوبية",
+      "type": "country",
+      "district": "technology",
+      "x": 58.9,
+      "y": 29.9,
+      "capacity_per_hour": 1000,
+      "avg_visit_min": 20,
+      "popularity": 5,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "technology",
+        "culture"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "de",
+      "name_en": "Germany Pavilion",
+      "name_ar": "جناح ألمانيا",
+      "type": "country",
+      "district": "technology",
+      "x": 40.3,
+      "y": 11.2,
+      "capacity_per_hour": 700,
+      "avg_visit_min": 30,
+      "popularity": 5,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "technology",
+        "planet"
+      ],
+      "on_loop": false
+    },
+    {
+      "id": "us",
+      "name_en": "United States Pavilion",
+      "name_ar": "جناح الولايات المتحدة",
+      "type": "country",
+      "district": "technology",
+      "x": 59.7,
+      "y": 11.2,
+      "capacity_per_hour": 1200,
+      "avg_visit_min": 25,
+      "popularity": 4,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "technology"
+      ],
+      "on_loop": false
+    },
+    {
+      "id": "th_planet",
+      "name_en": "Planet Pavilion",
+      "name_ar": "جناح الكوكب",
+      "type": "thematic",
+      "district": "planet",
+      "x": 78.5,
+      "y": 40.7,
+      "capacity_per_hour": 1600,
+      "avg_visit_min": 25,
+      "popularity": 4,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "planet"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "sg",
+      "name_en": "Singapore Pavilion",
+      "name_ar": "جناح سنغافورة",
+      "type": "country",
+      "district": "planet",
+      "x": 66.3,
+      "y": 35.3,
+      "capacity_per_hour": 800,
+      "avg_visit_min": 20,
+      "popularity": 4,
+      "indoor": false,
+      "has_queue": true,
+      "tags": [
+        "planet",
+        "technology"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "br",
+      "name_en": "Brazil Pavilion",
+      "name_ar": "جناح البرازيل",
+      "type": "country",
+      "district": "planet",
+      "x": 71.9,
+      "y": 52.3,
+      "capacity_per_hour": 900,
+      "avg_visit_min": 15,
+      "popularity": 3,
+      "indoor": false,
+      "has_queue": true,
+      "tags": [
+        "planet",
+        "culture"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "no",
+      "name_en": "Norway Pavilion",
+      "name_ar": "جناح النرويج",
+      "type": "country",
+      "district": "planet",
+      "x": 83.9,
+      "y": 28.8,
+      "capacity_per_hour": 600,
+      "avg_visit_min": 20,
+      "popularity": 3,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "planet"
+      ],
+      "on_loop": false
+    },
+    {
+      "id": "ma",
+      "name_en": "Morocco Pavilion",
+      "name_ar": "جناح المغرب",
+      "type": "country",
+      "district": "planet",
+      "x": 89.9,
+      "y": 47.2,
+      "capacity_per_hour": 700,
+      "avg_visit_min": 20,
+      "popularity": 3,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "planet",
+        "culture"
+      ],
+      "on_loop": false
+    },
+    {
+      "id": "th_humanity",
+      "name_en": "Humanity Pavilion",
+      "name_ar": "جناح الإنسانية",
+      "type": "thematic",
+      "district": "humanity",
+      "x": 67.6,
+      "y": 74.3,
+      "capacity_per_hour": 1500,
+      "avg_visit_min": 25,
+      "popularity": 4,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "humanity"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "in",
+      "name_en": "India Pavilion",
+      "name_ar": "جناح الهند",
+      "type": "country",
+      "district": "humanity",
+      "x": 68.7,
+      "y": 61.7,
+      "capacity_per_hour": 1400,
+      "avg_visit_min": 25,
+      "popularity": 4,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "humanity",
+        "culture"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "eg",
+      "name_en": "Egypt Pavilion",
+      "name_ar": "جناح مصر",
+      "type": "country",
+      "district": "humanity",
+      "x": 55.3,
+      "y": 71.3,
+      "capacity_per_hour": 1000,
+      "avg_visit_min": 20,
+      "popularity": 4,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "humanity",
+        "culture"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "id",
+      "name_en": "Indonesia Pavilion",
+      "name_ar": "جناح إندونيسيا",
+      "type": "country",
+      "district": "humanity",
+      "x": 73.5,
+      "y": 82.4,
+      "capacity_per_hour": 800,
+      "avg_visit_min": 15,
+      "popularity": 3,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "humanity"
+      ],
+      "on_loop": false
+    },
+    {
+      "id": "th_culture",
+      "name_en": "Culture Pavilion",
+      "name_ar": "جناح الثقافة",
+      "type": "thematic",
+      "district": "culture",
+      "x": 32.4,
+      "y": 74.3,
+      "capacity_per_hour": 1600,
+      "avg_visit_min": 25,
+      "popularity": 4,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "culture"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "fr",
+      "name_en": "France Pavilion",
+      "name_ar": "جناح فرنسا",
+      "type": "country",
+      "district": "culture",
+      "x": 45.4,
+      "y": 71.5,
+      "capacity_per_hour": 1000,
+      "avg_visit_min": 25,
+      "popularity": 4,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "culture",
+        "technology"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "it",
+      "name_en": "Italy Pavilion",
+      "name_ar": "جناح إيطاليا",
+      "type": "country",
+      "district": "culture",
+      "x": 30.9,
+      "y": 61.0,
+      "capacity_per_hour": 900,
+      "avg_visit_min": 25,
+      "popularity": 4,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "culture"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "cn",
+      "name_en": "China Pavilion",
+      "name_ar": "جناح الصين",
+      "type": "country",
+      "district": "culture",
+      "x": 35.0,
+      "y": 87.1,
+      "capacity_per_hour": 1500,
+      "avg_visit_min": 25,
+      "popularity": 5,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "culture",
+        "technology"
+      ],
+      "on_loop": false
+    },
+    {
+      "id": "bh",
+      "name_en": "Bahrain Pavilion",
+      "name_ar": "جناح البحرين",
+      "type": "country",
+      "district": "culture",
+      "x": 19.4,
+      "y": 75.7,
+      "capacity_per_hour": 500,
+      "avg_visit_min": 15,
+      "popularity": 3,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "culture"
+      ],
+      "on_loop": false
+    },
+    {
+      "id": "th_collaboration",
+      "name_en": "Collaboration Pavilion",
+      "name_ar": "جناح التعاون",
+      "type": "thematic",
+      "district": "collaboration",
+      "x": 21.5,
+      "y": 40.7,
+      "capacity_per_hour": 1400,
+      "avg_visit_min": 20,
+      "popularity": 3,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "collaboration"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "ae",
+      "name_en": "UAE Pavilion",
+      "name_ar": "جناح الإمارات",
+      "type": "country",
+      "district": "collaboration",
+      "x": 28.1,
+      "y": 51.5,
+      "capacity_per_hour": 1200,
+      "avg_visit_min": 25,
+      "popularity": 5,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "collaboration",
+        "technology"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "gb",
+      "name_en": "United Kingdom Pavilion",
+      "name_ar": "جناح المملكة المتحدة",
+      "type": "country",
+      "district": "collaboration",
+      "x": 33.1,
+      "y": 35.9,
+      "capacity_per_hour": 800,
+      "avg_visit_min": 20,
+      "popularity": 3,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "collaboration",
+        "technology"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "ng",
+      "name_en": "Nigeria Pavilion",
+      "name_ar": "جناح نيجيريا",
+      "type": "country",
+      "district": "collaboration",
+      "x": 12.0,
+      "y": 37.6,
+      "capacity_per_hour": 500,
+      "avg_visit_min": 15,
+      "popularity": 2,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "collaboration",
+        "culture"
+      ],
+      "on_loop": false
+    },
+    {
+      "id": "icon",
+      "name_en": "Expo 2030 Riyadh Icon",
+      "name_ar": "أيقونة إكسبو 2030 الرياض",
+      "type": "landmark",
+      "district": "central",
+      "x": 50,
+      "y": 50,
+      "has_queue": false,
+      "on_loop": true
+    },
+    {
+      "id": "ksa",
+      "name_en": "Saudi Arabia Pavilion",
+      "name_ar": "جناح المملكة العربية السعودية",
+      "type": "landmark",
+      "district": "central",
+      "x": 50,
+      "y": 40,
+      "has_queue": true,
+      "on_loop": true,
+      "capacity_per_hour": 3000,
+      "avg_visit_min": 30,
+      "popularity": 5,
+      "indoor": true,
+      "tags": [
+        "culture",
+        "technology"
+      ]
+    },
+    {
+      "id": "stage",
+      "name_en": "Expo Stage",
+      "name_ar": "مسرح إكسبو",
+      "type": "landmark",
+      "district": "central",
+      "x": 60,
+      "y": 58,
+      "has_queue": false,
+      "on_loop": true
+    },
+    {
+      "id": "convention",
+      "name_en": "Expo Convention Center",
+      "name_ar": "مركز إكسبو للمؤتمرات",
+      "type": "landmark",
+      "district": "central",
+      "x": 40,
+      "y": 58,
+      "has_queue": false,
+      "on_loop": true
+    },
+    {
+      "id": "metro",
+      "name_en": "Metro Gate",
+      "name_ar": "بوابة المترو",
+      "type": "landmark",
+      "district": "central",
+      "x": 50,
+      "y": 97,
+      "has_queue": false,
+      "on_loop": false
+    }
+  ]
+}
