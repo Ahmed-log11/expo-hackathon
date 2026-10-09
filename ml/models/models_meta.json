@@ -1,0 +1,40 @@
+{
+  "live_wait_30": {
+    "features": [
+      "wait",
+      "wait_prev",
+      "guests",
+      "capacity",
+      "load_ratio",
+      "down_min",
+      "attendance_per_ride",
+      "is_weekend",
+      "ride_popularity",
+      "ride_capacity"
+    ],
+    "target": "wait_in_30",
+    "predicts": "change; add to current wait",
+    "test_scores": {
+      "MAE": 5.190834621249461,
+      "MAE busy": 8.704693428347273
+    }
+  },
+  "plan_wait": {
+    "features": [
+      "attendance_per_ride",
+      "is_weekend",
+      "hour",
+      "minute_of_day",
+      "ride_popularity",
+      "ride_capacity"
+    ],
+    "target": "wait",
+    "predicts": "wait directly",
+    "test_scores": {
+      "MAE": 10.513219906277428,
+      "MAE busy": 21.82984701377003
+    }
+  },
+  "trained_on": "PortAventura World + Tivoli Gardens queue data, 2018-2022",
+  "test_period_start": "2021-07-01"
+}

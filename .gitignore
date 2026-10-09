@@ -16,6 +16,7 @@ build/
 # Simulation output and large model files
 sim/output/
 ml/models/*.joblib
+ml/data/
 
 # OS / editor
 .DS_Store
