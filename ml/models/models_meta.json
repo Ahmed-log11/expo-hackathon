@@ -31,8 +31,8 @@
     "target": "wait",
     "predicts": "wait directly",
     "test_scores": {
-      "MAE": 10.513219906277428,
-      "MAE busy": 21.82984701377003
+      "MAE": 7.864077928983758,
+      "MAE busy": 14.757106595620487
     }
   },
   "trained_on": "PortAventura World + Tivoli Gardens queue data, 2018-2022",

@@ -109,6 +109,15 @@ def add_features_and_target(df: pd.DataFrame) -> pd.DataFrame:
     df["load_ratio"] = (df["guests"] / df["capacity"]).clip(0, 2)
 
     df = df.dropna(subset=["wait_prev", f"wait_in_{HORIZON_MIN}"])
+        # park-wide picture right now: where is the crowd moving?
+    df["is_down"] = (df["down_min"] > 0).astype(int)
+    park_now = (df.groupby(["park", "time"])
+                  .agg(park_wait_mean=("wait", "mean"), rides_down=("is_down", "sum"))
+                  .reset_index().sort_values(["park", "time"]))
+    gap_ok = park_now.groupby("park")["time"].diff() == pd.Timedelta(minutes=SLOT_MIN)
+    park_now["park_wait_change"] = park_now.groupby("park")["park_wait_mean"].diff().where(gap_ok)
+    df = df.merge(park_now, on=["park", "time"], how="left")
+    df["ride_vs_park"] = df["wait"] - df["park_wait_mean"]
     return df
 
 
@@ -121,7 +130,8 @@ def main() -> None:
     keep = ["time", "park", "attraction", "attendance", "open_rides", "attendance_per_ride",
             "hour", "minute_of_day",
             "day_of_week", "is_weekend", "month", "wait", "wait_prev", "guests",
-            "capacity", "load_ratio", "down_min", f"wait_in_{HORIZON_MIN}"]
+                        "capacity", "load_ratio", "down_min",
+            "park_wait_mean", "park_wait_change", "rides_down", "ride_vs_park", f"wait_in_{HORIZON_MIN}"]
     df = df[keep]
 
     try:
