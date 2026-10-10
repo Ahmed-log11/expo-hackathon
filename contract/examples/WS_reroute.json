@@ -1,42 +1,84 @@
 {
   "type": "reroute",
-  "visitor_id": "v_c0648c94b3",
+  "visitor_id": "v_a72b760dd9",
   "reason": "Japan Pavilion's wait jumped, so we updated your route.",
   "saves_min": 12,
   "route": {
-    "visitor_id": "v_c0648c94b3",
+    "visitor_id": "v_a72b760dd9",
     "version": 2,
-    "generated_at": "2026-10-10T18:21:42+03:00",
+    "generated_at": "2026-10-10T20:30:00+03:00",
     "start_point": "cn",
-    "end_time": "2026-10-10T22:21:42+03:00",
+    "end_time": "2026-10-11T00:30:00+03:00",
     "stops": [
       {
         "order": 1,
-        "pavilion_id": "kr",
-        "walk_from_prev_min": 9,
-        "arrive_at": "2026-10-10T18:30:42+03:00",
-        "wait_min": 62,
-        "visit_min": 20,
-        "leave_at": "2026-10-10T19:52:42+03:00",
+        "pavilion_id": "fr",
+        "walk_from_prev_min": 5,
+        "arrive_at": "2026-10-10T20:35:00+03:00",
+        "wait_min": 41,
+        "visit_min": 25,
+        "leave_at": "2026-10-10T21:41:00+03:00",
         "path": [
           "cn",
+          "fr"
+        ],
+        "landmarks": [],
+        "shaded_pct": 0
+      },
+      {
+        "order": 2,
+        "pavilion_id": "ksa",
+        "walk_from_prev_min": 16,
+        "arrive_at": "2026-10-10T21:57:00+03:00",
+        "wait_min": 39,
+        "visit_min": 30,
+        "leave_at": "2026-10-10T23:06:00+03:00",
+        "path": [
+          "fr",
+          "th_culture",
+          "it",
+          "convention",
           "icon",
-          "kr"
+          "ksa"
         ],
         "landmarks": [
+          "th_culture",
+          "it",
+          "convention",
           "icon"
-        ]
+        ],
+        "shaded_pct": 100
+      },
+      {
+        "order": 3,
+        "pavilion_id": "kr",
+        "walk_from_prev_min": 4,
+        "arrive_at": "2026-10-10T23:10:00+03:00",
+        "wait_min": 29,
+        "visit_min": 20,
+        "leave_at": "2026-10-10T23:59:00+03:00",
+        "path": [
+          "ksa",
+          "kr"
+        ],
+        "landmarks": [],
+        "shaded_pct": 100
       }
     ],
     "totals": {
-      "walk_min": 9,
-      "wait_min": 62,
-      "stops": 1
+      "walk_min": 25,
+      "wait_min": 109,
+      "stops": 3
     },
     "feasibility": {
-      "fits": 1,
-      "requested": 1,
-      "dropped": []
+      "fits": 3,
+      "requested": 6,
+      "dropped": [
+        "th_technology",
+        "de",
+        "ae"
+      ],
+      "too_busy": []
     },
     "summary": null
   }

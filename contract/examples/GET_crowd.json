@@ -1,22 +1,22 @@
 {
-  "updated_at": "2026-10-10T18:21:42+03:00",
+  "updated_at": "2026-10-10T20:30:45+03:00",
   "pavilions": [
     {
       "pavilion_id": "th_technology",
-      "wait_min": 57,
-      "queue_length": 1710,
+      "wait_min": 52,
+      "queue_length": 1560,
       "status": "high"
     },
     {
       "pavilion_id": "jp",
-      "wait_min": 56,
-      "queue_length": 840,
+      "wait_min": 52,
+      "queue_length": 780,
       "status": "high"
     },
     {
       "pavilion_id": "kr",
-      "wait_min": 60,
-      "queue_length": 1000,
+      "wait_min": 52,
+      "queue_length": 867,
       "status": "high"
     }
   ]

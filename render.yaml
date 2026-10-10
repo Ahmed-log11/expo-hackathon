@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: expo2030-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: claude-haiku-5-5
+      - key: CROWD_INTERVAL_S
+        value: "10"
+      - key: DEMO_TOKEN
+        sync: false

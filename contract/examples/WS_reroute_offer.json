@@ -1,0 +1,146 @@
+{
+  "type": "reroute_offer",
+  "reason": "Crowding is rising at China Pavilion. The new route could save you 18 minutes.",
+  "offer_id": "o_1",
+  "visitor_id": "v_7ce2b653b9",
+  "expires_at": "2026-10-10T20:33:00+03:00",
+  "saves_min": 18,
+  "trigger": {
+    "pavilion_id": "cn",
+    "wait_min": 90,
+    "planned_wait_min": 50
+  },
+  "old": [
+    {
+      "pavilion_id": "cn",
+      "arrive_at": "2026-10-10T20:42:00+03:00",
+      "wait_min": 90
+    },
+    {
+      "pavilion_id": "jp",
+      "arrive_at": "2026-10-10T22:56:00+03:00",
+      "wait_min": 30
+    },
+    {
+      "pavilion_id": "kr",
+      "arrive_at": "2026-10-10T23:53:00+03:00",
+      "wait_min": 24
+    }
+  ],
+  "new": [
+    {
+      "pavilion_id": "jp",
+      "arrive_at": "2026-10-10T20:56:00+03:00",
+      "wait_min": 48
+    },
+    {
+      "pavilion_id": "kr",
+      "arrive_at": "2026-10-10T22:11:00+03:00",
+      "wait_min": 37
+    },
+    {
+      "pavilion_id": "cn",
+      "arrive_at": "2026-10-10T23:27:00+03:00",
+      "wait_min": 27
+    }
+  ],
+  "route": {
+    "visitor_id": "v_7ce2b653b9",
+    "version": 2,
+    "generated_at": "2026-10-10T20:30:00+03:00",
+    "start_point": "metro",
+    "end_time": "2026-10-11T00:30:00+03:00",
+    "stops": [
+      {
+        "order": 1,
+        "pavilion_id": "jp",
+        "walk_from_prev_min": 26,
+        "arrive_at": "2026-10-10T20:56:00+03:00",
+        "wait_min": 48,
+        "visit_min": 20,
+        "leave_at": "2026-10-10T22:04:00+03:00",
+        "path": [
+          "metro",
+          "eg",
+          "th_humanity",
+          "in",
+          "stage",
+          "icon",
+          "ksa",
+          "jp"
+        ],
+        "landmarks": [
+          "eg",
+          "th_humanity",
+          "in",
+          "stage",
+          "icon",
+          "ksa"
+        ],
+        "shaded_pct": 73
+      },
+      {
+        "order": 2,
+        "pavilion_id": "kr",
+        "walk_from_prev_min": 7,
+        "arrive_at": "2026-10-10T22:11:00+03:00",
+        "wait_min": 37,
+        "visit_min": 20,
+        "leave_at": "2026-10-10T23:08:00+03:00",
+        "path": [
+          "jp",
+          "th_technology",
+          "kr"
+        ],
+        "landmarks": [
+          "th_technology"
+        ],
+        "shaded_pct": 100
+      },
+      {
+        "order": 3,
+        "pavilion_id": "cn",
+        "walk_from_prev_min": 19,
+        "arrive_at": "2026-10-10T23:27:00+03:00",
+        "wait_min": 27,
+        "visit_min": 25,
+        "leave_at": "2026-10-11T00:19:00+03:00",
+        "path": [
+          "kr",
+          "ksa",
+          "icon",
+          "convention",
+          "it",
+          "th_culture",
+          "cn"
+        ],
+        "landmarks": [
+          "ksa",
+          "icon",
+          "convention",
+          "it",
+          "th_culture"
+        ],
+        "shaded_pct": 82
+      }
+    ],
+    "totals": {
+      "walk_min": 52,
+      "wait_min": 112,
+      "stops": 3
+    },
+    "feasibility": {
+      "fits": 3,
+      "requested": 8,
+      "dropped": [
+        "ksa",
+        "fr",
+        "th_technology",
+        "de",
+        "ae"
+      ],
+      "too_busy": []
+    },
+    "summary": null
+  }
+}

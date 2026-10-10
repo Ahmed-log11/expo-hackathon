@@ -1,59 +1,76 @@
 {
-  "visitor_id": "v_c0648c94b3",
+  "visitor_id": "v_a72b760dd9",
   "version": 1,
-  "generated_at": "2026-10-10T18:21:42+03:00",
+  "generated_at": "2026-10-10T20:30:00+03:00",
   "start_point": "metro",
-  "end_time": "2026-10-10T22:21:42+03:00",
+  "end_time": "2026-10-11T00:30:00+03:00",
   "stops": [
     {
       "order": 1,
       "pavilion_id": "cn",
-      "walk_from_prev_min": 3,
-      "arrive_at": "2026-10-10T18:24:42+03:00",
-      "wait_min": 59,
+      "walk_from_prev_min": 12,
+      "arrive_at": "2026-10-10T20:42:00+03:00",
+      "wait_min": 50,
       "visit_min": 25,
-      "leave_at": "2026-10-10T19:48:42+03:00",
+      "leave_at": "2026-10-10T21:57:00+03:00",
       "path": [
         "metro",
+        "fr",
         "cn"
       ],
-      "landmarks": []
+      "landmarks": [
+        "fr"
+      ],
+      "shaded_pct": 0
     },
     {
       "order": 2,
       "pavilion_id": "jp",
-      "walk_from_prev_min": 9,
-      "arrive_at": "2026-10-10T19:57:42+03:00",
-      "wait_min": 53,
+      "walk_from_prev_min": 19,
+      "arrive_at": "2026-10-10T22:16:00+03:00",
+      "wait_min": 36,
       "visit_min": 20,
-      "leave_at": "2026-10-10T21:10:42+03:00",
+      "leave_at": "2026-10-10T23:12:00+03:00",
       "path": [
         "cn",
-        "icon",
+        "th_culture",
+        "it",
+        "ae",
+        "th_collaboration",
+        "gb",
         "jp"
       ],
       "landmarks": [
-        "icon"
-      ]
+        "th_culture",
+        "it",
+        "ae",
+        "th_collaboration",
+        "gb"
+      ],
+      "shaded_pct": 82
     },
     {
       "order": 3,
       "pavilion_id": "kr",
-      "walk_from_prev_min": 3,
-      "arrive_at": "2026-10-10T21:13:42+03:00",
-      "wait_min": 42,
+      "walk_from_prev_min": 7,
+      "arrive_at": "2026-10-10T23:19:00+03:00",
+      "wait_min": 28,
       "visit_min": 20,
-      "leave_at": "2026-10-10T22:15:42+03:00",
+      "leave_at": "2026-10-11T00:07:00+03:00",
       "path": [
         "jp",
+        "th_technology",
         "kr"
       ],
-      "landmarks": []
+      "landmarks": [
+        "th_technology"
+      ],
+      "shaded_pct": 100
     }
   ],
   "totals": {
-    "walk_min": 15,
-    "wait_min": 154,
+    "walk_min": 38,
+    "wait_min": 114,
     "stops": 3
   },
   "feasibility": {
@@ -65,7 +82,8 @@
       "th_technology",
       "de",
       "ae"
-    ]
+    ],
+    "too_busy": []
   },
   "summary": null
 }
