@@ -1,0 +1,63 @@
+{
+  "preview_id": "p_7ed2c8fc",
+  "visitor_id": "v_c0648c94b3",
+  "tool_calls": [],
+  "explanation": "Preview only: plan adjustment is not live yet.",
+  "route": {
+    "visitor_id": "v_c0648c94b3",
+    "version": 1,
+    "generated_at": "2026-10-10T18:21:42+03:00",
+    "start_point": "metro",
+    "end_time": "2026-10-10T22:21:42+03:00",
+    "stops": [
+      {
+        "order": 1,
+        "pavilion_id": "jp",
+        "walk_from_prev_min": 9,
+        "arrive_at": "2026-10-10T19:57:42+03:00",
+        "wait_min": 53,
+        "visit_min": 20,
+        "leave_at": "2026-10-10T21:10:42+03:00",
+        "path": [
+          "cn",
+          "icon",
+          "jp"
+        ],
+        "landmarks": [
+          "icon"
+        ]
+      },
+      {
+        "order": 2,
+        "pavilion_id": "kr",
+        "walk_from_prev_min": 3,
+        "arrive_at": "2026-10-10T21:13:42+03:00",
+        "wait_min": 42,
+        "visit_min": 20,
+        "leave_at": "2026-10-10T22:15:42+03:00",
+        "path": [
+          "jp",
+          "kr"
+        ],
+        "landmarks": []
+      }
+    ],
+    "totals": {
+      "walk_min": 15,
+      "wait_min": 154,
+      "stops": 3
+    },
+    "feasibility": {
+      "fits": 3,
+      "requested": 8,
+      "dropped": [
+        "ksa",
+        "fr",
+        "th_technology",
+        "de",
+        "ae"
+      ]
+    },
+    "summary": null
+  }
+}

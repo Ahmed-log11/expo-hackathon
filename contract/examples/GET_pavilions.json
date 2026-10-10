@@ -1,0 +1,111 @@
+{
+  "districts": [
+    {
+      "id": "technology",
+      "name_en": "Technology",
+      "name_ar": "التقنية"
+    },
+    {
+      "id": "planet",
+      "name_en": "Planet",
+      "name_ar": "الكوكب"
+    },
+    {
+      "id": "humanity",
+      "name_en": "Humanity",
+      "name_ar": "الإنسانية"
+    },
+    {
+      "id": "culture",
+      "name_en": "Culture",
+      "name_ar": "الثقافة"
+    },
+    {
+      "id": "collaboration",
+      "name_en": "Collaboration",
+      "name_ar": "التعاون"
+    }
+  ],
+  "pavilions": [
+    {
+      "id": "th_technology",
+      "name_en": "Technology Pavilion",
+      "name_ar": "جناح التقنية",
+      "type": "thematic",
+      "district": "technology",
+      "x": 50.0,
+      "y": 20.0,
+      "capacity_per_hour": 1800,
+      "avg_visit_min": 30,
+      "popularity": 5,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "technology"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "jp",
+      "name_en": "Japan Pavilion",
+      "name_ar": "جناح اليابان",
+      "type": "country",
+      "district": "technology",
+      "x": 41.1,
+      "y": 29.9,
+      "capacity_per_hour": 900,
+      "avg_visit_min": 20,
+      "popularity": 5,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "technology",
+        "culture"
+      ],
+      "on_loop": true
+    },
+    {
+      "id": "kr",
+      "name_en": "South Korea Pavilion",
+      "name_ar": "جناح كوريا الجنوبية",
+      "type": "country",
+      "district": "technology",
+      "x": 58.9,
+      "y": 29.9,
+      "capacity_per_hour": 1000,
+      "avg_visit_min": 20,
+      "popularity": 5,
+      "indoor": true,
+      "has_queue": true,
+      "tags": [
+        "technology",
+        "culture"
+      ],
+      "on_loop": true
+    }
+  ],
+  "landmarks": [
+    {
+      "id": "icon",
+      "name_en": "Expo 2030 Riyadh Icon",
+      "name_ar": "أيقونة إكسبو 2030 الرياض",
+      "type": "landmark",
+      "district": "central",
+      "x": 50,
+      "y": 50,
+      "has_queue": false,
+      "on_loop": true
+    },
+    {
+      "id": "stage",
+      "name_en": "Expo Stage",
+      "name_ar": "مسرح إكسبو",
+      "type": "landmark",
+      "district": "central",
+      "x": 60,
+      "y": 58,
+      "has_queue": false,
+      "on_loop": true
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "visitor_id": "v_c0648c94b3",
+  "route_version": 1,
+  "pavilion_id": "cn",
+  "walk_min": 3,
+  "wait_min": 59,
+  "arrive_at": "2026-10-10T18:24:42+03:00",
+  "path": [
+    "metro",
+    "cn"
+  ],
+  "landmarks": [],
+  "remaining_stops": 2
+}

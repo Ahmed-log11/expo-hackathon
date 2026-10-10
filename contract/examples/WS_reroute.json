@@ -1,0 +1,43 @@
+{
+  "type": "reroute",
+  "visitor_id": "v_c0648c94b3",
+  "reason": "Japan Pavilion's wait jumped, so we updated your route.",
+  "saves_min": 12,
+  "route": {
+    "visitor_id": "v_c0648c94b3",
+    "version": 2,
+    "generated_at": "2026-10-10T18:21:42+03:00",
+    "start_point": "cn",
+    "end_time": "2026-10-10T22:21:42+03:00",
+    "stops": [
+      {
+        "order": 1,
+        "pavilion_id": "kr",
+        "walk_from_prev_min": 9,
+        "arrive_at": "2026-10-10T18:30:42+03:00",
+        "wait_min": 62,
+        "visit_min": 20,
+        "leave_at": "2026-10-10T19:52:42+03:00",
+        "path": [
+          "cn",
+          "icon",
+          "kr"
+        ],
+        "landmarks": [
+          "icon"
+        ]
+      }
+    ],
+    "totals": {
+      "walk_min": 9,
+      "wait_min": 62,
+      "stops": 1
+    },
+    "feasibility": {
+      "fits": 1,
+      "requested": 1,
+      "dropped": []
+    },
+    "summary": null
+  }
+}
