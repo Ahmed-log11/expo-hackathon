@@ -1,0 +1,386 @@
+/**
+ * 05 — Planning wizard: Time (1/4) → Interests (2/4) → Must Visit (3/4) → Comfort (4/4).
+ * Every value (positions, sizes, colours, type) comes from the Figma frames on the Prototype page.
+ */
+import React, { useMemo, useRef, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeIn, FadeOut, LinearTransition, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import { C, M, ar, s, sf } from '../theme';
+import { Button, Chip, CrowdPill, Glass, Icon, Pressy, RoundButton, StepProgress, Txt, levelFor, CROWD } from '../components/ui';
+import { useNav } from '../nav/Navigator';
+import { AR_DAYS, AR_MONTHS, dayLabel, fmtTime, useStore } from '../data/store';
+import { PAVILION_IDS, PLACES, categoryOf, nameOf, photoOf, walkMinutes } from '../data/places';
+import { PHOTOS } from '../assets/images';
+import type { IconName } from '../assets/svg';
+
+const layout = LinearTransition.duration(M.standard).easing(M.flowOut);
+
+// ---------- shared frame ----------
+function WizardFrame({ step, title, subtitle, children, footer, scroll }: {
+  step: number; title: string; subtitle: string; children: React.ReactNode; footer: React.ReactNode; scroll?: boolean;
+}) {
+  const nav = useNav();
+  const header = (
+    <View style={{ marginTop: s(116), paddingHorizontal: s(16), gap: s(6) }}>
+      <Txt style={ar(700, 34, 46)}>{title}</Txt>
+      <Txt style={[ar(400, 17, 29), { color: C.slate }]}>{subtitle}</Txt>
+    </View>
+  );
+  return (
+    <View style={{ flex: 1, backgroundColor: C.canvas }}>
+      <StatusBar style="dark" />
+      {scroll ? (
+        <ScrollView contentContainerStyle={{ paddingBottom: s(150) }} showsVerticalScrollIndicator={false}>
+          {header}
+          {children}
+        </ScrollView>
+      ) : (
+        <View style={{ flex: 1 }}>
+          {header}
+          {children}
+        </View>
+      )}
+      {/* Nav bar: step label · progress · back */}
+      <View style={{ position: 'absolute', top: s(56), left: s(16), right: s(16), height: s(46), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Txt style={[sf(400, 13, 19), { color: C.slate, width: s(44), textAlign: 'left' }]}>{`${step}/4`}</Txt>
+        <StepProgress step={step} />
+        <RoundButton icon="chevron-right" onPress={() => nav.back()} />
+      </View>
+      {/* Bottom bar fades the content out behind the button */}
+      <LinearGradient
+        colors={['rgba(243,248,246,0)', C.canvas]}
+        locations={[0, 0.3]}
+        pointerEvents="box-none"
+        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: s(16), paddingTop: s(28), paddingBottom: s(46), gap: s(10), alignItems: 'center' }}
+      >
+        {footer}
+      </LinearGradient>
+    </View>
+  );
+}
+
+// ---------- 1/4 Time ----------
+const START_OPTIONS = [16, 17, 18, 19, 14, 15];
+const END_OPTIONS = [22, 21, 20, 23, 24];
+
+function atHour(base: Date, h: number) {
+  const d = new Date(base);
+  d.setHours(0, 0, 0, 0);
+  d.setTime(d.getTime() + h * 3600_000);
+  return d;
+}
+
+export function PlanTime() {
+  const nav = useNav();
+  const { plan, setPlan } = useStore();
+  const startH = plan.start.getHours() + plan.start.getMinutes() / 60;
+  const endH = (plan.end.getTime() - atHour(plan.start, 0).getTime()) / 3600_000;
+  const hours = Math.max(1, Math.round(endH - startH));
+  const day = plan.start;
+  const dateLabel = `${dayLabel(day)} · ${AR_DAYS[day.getDay()]} ${day.getDate()} ${AR_MONTHS[day.getMonth()]}`;
+  const stops = hours >= 6 ? '4 إلى 6' : hours >= 5 ? '4 إلى 5' : hours >= 4 ? '3 إلى 4' : '2 إلى 3';
+
+  const cycle = (opts: number[], cur: number) => opts[(opts.indexOf(Math.round(cur)) + 1) % opts.length] ?? opts[0];
+  const nextStart = () => {
+    const h = cycle(START_OPTIONS, startH);
+    const start = atHour(plan.start, h);
+    const end = endH - h < 2 ? atHour(plan.start, Math.min(24, h + 4)) : plan.end;
+    setPlan({ start, end });
+  };
+  const nextEnd = () => {
+    let h = cycle(END_OPTIONS, endH);
+    if (h - startH < 2) h = END_OPTIONS[0];
+    setPlan({ end: atHour(plan.start, h) });
+  };
+
+  return (
+    <WizardFrame
+      step={1}
+      title="خطط يومك"
+      subtitle="حدد وقتك داخل إكسبو، ونرتّب لك المحطات حسب الزحمة المتوقعة."
+      footer={<Button label="التالي" style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanInterests')} />}
+    >
+      <View style={{ marginTop: s(24), paddingHorizontal: s(16), gap: s(12), alignItems: 'flex-end' }}>
+        <View style={{ height: s(44), borderRadius: s(18), backgroundColor: C.white, borderWidth: s(1), borderColor: C.line, paddingHorizontal: s(14), flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+          <Txt style={ar(600, 15, 22)}>{dateLabel}</Txt>
+          <Icon name="calendar" size={20} color={C.aquaText} />
+        </View>
+        <TimeSelector question="متى تبدأ زيارتك؟" value={fmtTime(plan.start)} onPress={nextStart} />
+        <TimeSelector question="متى تريد إنهاء يومك؟" value={fmtTime(plan.end)} onPress={nextEnd} />
+        <View style={{ alignSelf: 'stretch', backgroundColor: C.deep, borderRadius: s(26), padding: s(20), gap: s(12) }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: s(8) }}>
+            <View style={{ width: s(44), height: s(44), borderRadius: s(20), backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="clock" size={24} color={C.aqua} />
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: s(2) }}>
+              <Animated.View key={hours} entering={FadeIn.duration(M.standard)}>
+                <Txt style={[ar(700, 28, 38), { color: C.white }]}>{`${hours} ساعات متاحة`}</Txt>
+              </Animated.View>
+              <Txt style={[ar(400, 15, 24), { color: C.mint }]}>{`من ${fmtTime(plan.start)} حتى ${fmtTime(plan.end)}`}</Txt>
+            </View>
+          </View>
+          <DayTrack hours={hours} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Txt style={[ar(500, 12, 18), { color: C.mint }]}>{fmtTime(plan.end)}</Txt>
+            <Txt style={[ar(500, 12, 18), { color: C.mint }]}>{fmtTime(plan.start)}</Txt>
+          </View>
+          <Txt style={[ar(400, 13, 21), { color: 'rgba(255,255,255,0.85)' }]}>{`مناسب لـ ${stops} محطات مع وقت للطعام والراحة.`}</Txt>
+        </View>
+      </View>
+    </WizardFrame>
+  );
+}
+
+function TimeSelector({ question, value, onPress }: { question: string; value: string; onPress: () => void }) {
+  return (
+    <Pressy onPress={onPress} style={{ alignSelf: 'stretch' }}>
+      <View style={{ height: s(75), borderRadius: s(22), backgroundColor: C.white, padding: s(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Animated.View layout={layout} style={{ height: s(43), borderRadius: s(14), backgroundColor: '#E8F0ED', paddingHorizontal: s(14), justifyContent: 'center' }}>
+          <Animated.View key={value} entering={FadeIn.duration(M.standard)}>
+            <Txt style={ar(600, 17, 27)}>{value}</Txt>
+          </Animated.View>
+        </Animated.View>
+        <Txt style={ar(600, 17, 27)}>{question}</Txt>
+      </View>
+    </Pressy>
+  );
+}
+
+/** Day track: available time fills from the start (right) toward the end (left), with suggested stops. */
+function DayTrack({ hours }: { hours: number }) {
+  const W = 330;
+  const fill = Math.min(1, hours / 6) * W;
+  const fillStyle = useAnimatedStyle(() => ({ width: withTiming(s(fill), { duration: M.standard, easing: M.flowOut }) }), [fill]);
+  const dots = [36, 116, 196, 276, 356].map((x) => x - 36);
+  return (
+    <View style={{ height: s(10), justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', left: 0, right: 0, height: s(4), borderRadius: s(2), backgroundColor: 'rgba(255,255,255,0.18)' }} />
+      <Animated.View style={[{ position: 'absolute', right: 0, height: s(4), borderRadius: s(2), backgroundColor: C.aqua }, fillStyle]} />
+      {dots.map((x, i) => (
+        <View key={i} style={{
+          position: 'absolute', left: s(x), width: s(10), height: s(10), borderRadius: s(5),
+          backgroundColor: i === 4 ? C.aqua : C.white, opacity: W - x > fill + 6 ? 0.25 : 1,
+        }} />
+      ))}
+    </View>
+  );
+}
+
+// ---------- 2/4 Interests ----------
+const INTERESTS: { key: string; label: string; icon: IconName; photo: keyof typeof PHOTOS; iconColor?: string }[] = [
+  { key: 'technology', label: 'التقنية', icon: 'tech', photo: 'hero', iconColor: C.ink },
+  { key: 'culture', label: 'الثقافة', icon: 'culture', photo: 'culture' },
+  { key: 'sustainability', label: 'الاستدامة', icon: 'leaf', photo: 'sustainability' },
+  { key: 'arts', label: 'الفنون', icon: 'art', photo: 'arts' },
+  { key: 'food', label: 'الطعام', icon: 'food', photo: 'aerial_sunset' },
+  { key: 'interactive', label: 'التجارب التفاعلية', icon: 'touch', photo: 'interactive' },
+];
+
+export function PlanInterests() {
+  const nav = useNav();
+  const { plan, setPlan } = useStore();
+  const toggle = (k: string) => setPlan({ tags: plan.tags.includes(k) ? plan.tags.filter((t) => t !== k) : [...plan.tags, k] });
+  const rows = [INTERESTS.slice(0, 2), INTERESTS.slice(2, 4), INTERESTS.slice(4, 6)];
+  const n = plan.tags.length;
+  return (
+    <WizardFrame
+      step={2}
+      title="وش تحب تكتشف؟"
+      subtitle="اختر اهتمامًا أو أكثر، ونرتّب يومك حولها."
+      footer={<>
+        <Txt style={[ar(400, 13, 21), { color: C.slate, textAlign: 'center' }]}>{n === 0 ? 'اختر اهتمامًا واحدًا على الأقل' : n === 1 ? 'اهتمام واحد مختار' : n === 2 ? 'اهتمامان مختاران' : `${n} اهتمامات مختارة`}</Txt>
+        <Button label="التالي" disabled={n === 0} style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanMustVisit')} />
+      </>}
+    >
+      <View style={{ marginTop: s(20), paddingHorizontal: s(16), gap: s(16) }}>
+        {rows.map((row, i) => (
+          // Row order in Figma is left → right; the first interest sits on the right (RTL).
+          <View key={i} style={{ flexDirection: 'row-reverse', gap: s(16) }}>
+            {row.map((it) => <InterestCard key={it.key} item={it} selected={plan.tags.includes(it.key)} onPress={() => toggle(it.key)} />)}
+          </View>
+        ))}
+      </View>
+    </WizardFrame>
+  );
+}
+
+function InterestCard({ item, selected, onPress }: { item: typeof INTERESTS[number]; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressy onPress={onPress} style={{ width: s(177), height: s(150) }}>
+      <View style={{ flex: 1, borderRadius: s(24), overflow: 'hidden' }}>
+        <Image source={PHOTOS[item.photo]} style={StyleSheet.absoluteFill} contentFit="cover" />
+        <LinearGradient colors={['rgba(8,38,36,0)', 'rgba(8,38,36,0.72)']} style={StyleSheet.absoluteFill} />
+        <View style={{ position: 'absolute', right: s(14), bottom: s(14), flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+          <Glass level="clear" radius={14} style={{ width: s(32), height: s(32), alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name={item.icon} size={18} color={item.iconColor ?? C.white} />
+          </Glass>
+          <Txt style={[ar(600, 17, 27), { color: C.white }]}>{item.label}</Txt>
+        </View>
+        {selected && (
+          <Animated.View entering={FadeIn.duration(M.standard)} exiting={FadeOut.duration(M.fast)} style={[StyleSheet.absoluteFill, { borderRadius: s(24), borderWidth: s(3), borderColor: C.aqua }]} pointerEvents="none">
+            <View style={{ position: 'absolute', left: s(9), top: s(9), width: s(28), height: s(28), borderRadius: s(15), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="check" size={18} color={C.ink} />
+            </View>
+          </Animated.View>
+        )}
+      </View>
+    </Pressy>
+  );
+}
+
+// ---------- 3/4 Must Visit ----------
+const FILTERS = [
+  { key: 'all', label: 'الكل' },
+  { key: 'intl', label: 'الأجنحة الدولية' },
+  { key: 'technology', label: 'التقنية' },
+  { key: 'planet', label: 'الاستدامة' },
+  { key: 'culture', label: 'الثقافة' },
+];
+const TAG_FOR_INTEREST: Record<string, string[]> = {
+  technology: ['technology'], culture: ['culture'], sustainability: ['planet'], arts: ['culture'], food: ['culture'], interactive: ['technology'],
+};
+
+export function PlanMustVisit() {
+  const nav = useNav();
+  const { plan, setPlan, crowd } = useStore();
+  const [filter, setFilter] = useState('all');
+  const chipsRef = useRef<ScrollView>(null);
+  const wanted = useMemo(() => new Set(plan.tags.flatMap((t) => TAG_FOR_INTEREST[t] ?? [])), [plan.tags]);
+  const list = useMemo(() => {
+    const score = (id: string) => {
+      const p = PLACES[id];
+      const match = (p.tags ?? []).filter((t) => wanted.has(t)).length;
+      const pick = plan.mustVisit.indexOf(id);
+      return (pick >= 0 ? 1000 - pick * 10 : 0) + match * 10 + (p.popularity ?? 0);   // picks first, in the order chosen
+    };
+    return PAVILION_IDS
+      .filter((id) => filter === 'all' || (filter === 'intl' ? PLACES[id].district !== 'central' && !id.startsWith('th_') : (PLACES[id].tags ?? []).includes(filter)))
+      .sort((a, b) => score(b) - score(a));
+    // The order is set when the list opens or the filter changes, so cards don't jump while you tap them.
+  }, [filter, wanted]);
+  const toggle = (id: string) => setPlan({ mustVisit: plan.mustVisit.includes(id) ? plan.mustVisit.filter((x) => x !== id) : [...plan.mustVisit, id].slice(0, 8) });
+
+  return (
+    <WizardFrame
+      step={3}
+      scroll
+      title="أماكن ما تبغى تفوتها"
+      subtitle="اختر الأجنحة اللي تهمك، ونضمنها في خطتك."
+      footer={<Button label="التالي" style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanComfort')} />}
+    >
+      <View style={{ marginTop: s(20), gap: s(12) }}>
+        <View style={{ marginHorizontal: s(16), height: s(50), borderRadius: s(25), backgroundColor: '#E8F0ED', paddingHorizontal: s(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: s(10) }}>
+          <Txt style={[ar(400, 17, 29), { color: C.slate, flex: 1 }]}>ابحث عن جناح أو تجربة</Txt>
+          <Icon name="search" size={22} color={C.slate} />
+        </View>
+        {/* First chip sits on the right; the row scrolls toward the left (RTL). */}
+        <ScrollView
+          ref={chipsRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          onContentSizeChange={() => chipsRef.current?.scrollToEnd({ animated: false })}
+          contentContainerStyle={{ paddingHorizontal: s(16), gap: s(8), flexDirection: 'row-reverse' }}
+        >
+          {FILTERS.map((f) => <Chip key={f.key} label={f.label} selected={filter === f.key} onPress={() => setFilter(f.key)} />)}
+        </ScrollView>
+        <View style={{ marginHorizontal: s(16), height: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Txt style={[ar(600, 13, 19), { color: C.aquaText }]}>{`${plan.mustVisit.length} مختارة`}</Txt>
+          <Txt style={ar(600, 17, 27)}>اقتراحات حسب اهتماماتك</Txt>
+        </View>
+        {list.map((id) => (
+          <Animated.View key={id} layout={layout} style={{ marginHorizontal: s(16) }}>
+            <PavilionPick id={id} selected={plan.mustVisit.includes(id)} wait={crowd[id]} onPress={() => toggle(id)} />
+          </Animated.View>
+        ))}
+      </View>
+    </WizardFrame>
+  );
+}
+
+function PavilionPick({ id, selected, wait, onPress }: { id: string; selected: boolean; wait?: number; onPress: () => void }) {
+  const lvl = wait != null ? levelFor(wait) : 'low';
+  return (
+    <Pressy onPress={onPress}>
+      <View style={{
+        minHeight: s(selected ? 110 : 106), borderRadius: s(22), backgroundColor: C.white, padding: s(12),
+        flexDirection: 'row', alignItems: 'center', gap: s(12),
+        borderWidth: selected ? s(2) : 0, borderColor: C.aqua,
+        boxShadow: `0px ${s(2)}px ${s(8)}px rgba(8,38,36,0.06), 0px ${s(8)}px ${s(24)}px rgba(8,38,36,0.06)`,
+      }}>
+        <View style={{ width: s(44), height: s(44), borderRadius: s(22), backgroundColor: selected ? C.aqua : C.mint, alignItems: 'center', justifyContent: 'center', marginLeft: selected ? 0 : s(2) }}>
+          <Icon name={selected ? 'check' : 'plus'} size={20} color={selected ? C.ink : C.aquaText} />
+        </View>
+        <View style={{ flex: 1, alignItems: 'flex-end', gap: s(4) }}>
+          <Txt style={ar(600, 17, 27)}>{nameOf(id)}</Txt>
+          <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{`${categoryOf(id)} · ${walkMinutes('icon', id)} د مشي`}</Txt>
+          {wait != null && <CrowdPill level={lvl} label={`${CROWD[lvl].word} · ${wait} د`} />}
+        </View>
+        <Image source={photoOf(id)} style={{ width: s(76), height: s(76), borderRadius: s(16) }} contentFit="cover" />
+      </View>
+    </Pressy>
+  );
+}
+
+// ---------- 4/4 Comfort ----------
+// Listed left → right per row, as in Figma.
+const COMFORT: { key: string; title: string; desc: string; icon: IconName }[] = [
+  { key: 'shade', title: 'مسارات مظللة', desc: 'نفضّل الممرات المظللة وقت الحر', icon: 'shade' },
+  { key: 'less_walk', title: 'أقل مشي', desc: 'محطات متقاربة ومسافات أقصر', icon: 'walk' },
+  { key: 'family', title: 'مناسب للعائلة', desc: 'استراحات ومرافق للأطفال', icon: 'family' },
+  { key: 'less_wait', title: 'أقل انتظار', desc: 'نرتّب المحطات حسب أقصر طوابير', icon: 'wait' },
+  { key: 'balanced', title: 'مزيج متوازن', desc: 'توازن بين المشي والانتظار', icon: 'balance' },
+  { key: 'access', title: 'سهولة الوصول', desc: 'مسارات بلا درج ومصاعد قريبة', icon: 'access' },
+];
+
+export function PlanComfort() {
+  const nav = useNav();
+  const { plan, setPlan } = useStore();
+  const toggle = (k: string) => setPlan({ comfort: plan.comfort.includes(k) ? plan.comfort.filter((t) => t !== k) : [...plan.comfort, k] });
+  const rows = [COMFORT.slice(0, 2), COMFORT.slice(2, 4), COMFORT.slice(4, 6)];
+  return (
+    <WizardFrame
+      step={4}
+      title="كيف تحب يكون يومك؟"
+      subtitle="نوازن بين المشي والانتظار والراحة حسب ما يناسبك."
+      footer={<>
+        <Txt style={[ar(400, 13, 21), { color: C.slate, textAlign: 'center' }]}>يمكنك تعديل تفضيلاتك لاحقًا من حسابي</Txt>
+        <Button label="أنشئ خطتي" style={{ alignSelf: 'stretch' }} onPress={() => nav.push('Generating', undefined, 'dissolve')} />
+      </>}
+    >
+      <View style={{ marginTop: s(20), paddingHorizontal: s(16), gap: s(16) }}>
+        {rows.map((row, i) => (
+          <View key={i} style={{ flexDirection: 'row', gap: s(16), alignItems: 'flex-start' }}>
+            {row.map((it) => <ComfortCard key={it.key} item={it} selected={plan.comfort.includes(it.key)} onPress={() => toggle(it.key)} />)}
+          </View>
+        ))}
+      </View>
+    </WizardFrame>
+  );
+}
+
+function ComfortCard({ item, selected, onPress }: { item: typeof COMFORT[number]; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressy onPress={onPress} style={{ width: s(177) }}>
+      <Animated.View layout={layout} style={{
+        minHeight: s(157), borderRadius: s(22), padding: s(16), gap: s(10), alignItems: 'flex-end',
+        backgroundColor: selected ? C.mint : C.white, borderWidth: s(selected ? 2 : 1), borderColor: selected ? C.aqua : C.line,
+      }}>
+        <View style={{ alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: s(38) }}>
+          {selected ? (
+            <Animated.View entering={FadeIn.duration(M.standard)} style={{ width: s(22), height: s(22), borderRadius: s(12), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="check" size={16} color={C.ink} />
+            </Animated.View>
+          ) : <View />}
+          <View style={{ width: s(38), height: s(38), borderRadius: s(14), backgroundColor: selected ? C.white : '#E8F0ED', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name={item.icon} size={22} color={selected ? C.aquaText : C.ink} />
+          </View>
+        </View>
+        <Txt style={[ar(600, 17, 27), { color: selected ? C.deep : C.ink }]}>{item.title}</Txt>
+        <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{item.desc}</Txt>
+      </Animated.View>
+    </Pressy>
+  );
+}
