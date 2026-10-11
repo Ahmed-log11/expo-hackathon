@@ -184,3 +184,39 @@ if __name__ == "__main__":
     q = " ".join(sys.argv[1:]) or "I love tech and Japanese culture"
     lang = "ar" if re.search(r"[\u0600-\u06FF]", q) else "en"
     print(json.dumps(extract_wishlist(q, lang, queued), ensure_ascii=False, indent=2))
+
+
+# ---------- interest chips (plan wizard step 2) ----------
+# The chips the design offers. Until pavilions.json carries these exact tags, each chip also
+# matches the closest of today's coarse tags (weaker match, ranked after exact ones).
+CHIPS = {
+    "culture":        {"en": "culture",                 "ar": "الثقافة",          "near": ["culture"]},
+    "technology":     {"en": "technology",              "ar": "التقنية",          "near": ["technology"]},
+    "arts":           {"en": "arts",                    "ar": "الفنون",           "near": ["culture"]},
+    "sustainability": {"en": "sustainability",          "ar": "الاستدامة",        "near": ["planet"]},
+    "interactive":    {"en": "interactive experiences", "ar": "التجارب التفاعلية", "near": ["technology"]},
+    "food":           {"en": "food",                    "ar": "الطعام",           "near": ["culture"]},
+}
+
+
+def from_chips(chips: list[str], language: str, pavilions: list[dict]) -> list[dict]:
+    """Pavilions matching the picked interest chips, best first: exact tag matches, then
+    near ones, then popularity. Each item: {pavilion_id, reason}."""
+    language = "ar" if language == "ar" else "en"
+    scored = []
+    for p in pavilions:
+        tags = set(p.get("tags", []))
+        best, why = 0, None
+        for chip in chips:
+            c = CHIPS.get(chip)
+            if not c:
+                continue
+            score = 2 if chip in tags else 1 if tags & set(c["near"]) else 0
+            if score > best:
+                best, why = score, c
+        if best:
+            scored.append((best, p.get("popularity", 0), p, why))
+    scored.sort(key=lambda x: (-x[0], -x[1]))
+    return [{"pavilion_id": p["id"],
+             "reason": (f"يناسب اهتمامك بـ{why['ar']}" if language == "ar" else f"Matches your interest in {why['en']}")}
+            for _, _, p, why in scored]

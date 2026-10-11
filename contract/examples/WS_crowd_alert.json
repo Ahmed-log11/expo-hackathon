@@ -2,5 +2,5 @@
   "type": "crowd_alert",
   "pavilion_id": "cn",
   "wait_min": 90,
-  "planned_wait_min": 50
+  "planned_wait_min": 43
 }

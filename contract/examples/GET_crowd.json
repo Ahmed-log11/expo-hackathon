@@ -1,10 +1,10 @@
 {
-  "updated_at": "2026-10-10T20:30:45+03:00",
+  "updated_at": "2026-10-11T19:50:33+03:00",
   "pavilions": [
     {
       "pavilion_id": "th_technology",
-      "wait_min": 52,
-      "queue_length": 1560,
+      "wait_min": 51,
+      "queue_length": 1530,
       "status": "high"
     },
     {
@@ -15,8 +15,8 @@
     },
     {
       "pavilion_id": "kr",
-      "wait_min": 52,
-      "queue_length": 867,
+      "wait_min": 42,
+      "queue_length": 700,
       "status": "high"
     }
   ]

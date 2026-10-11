@@ -1,56 +1,65 @@
 {
-  "visitor_id": "v_a72b760dd9",
+  "visitor_id": "v_977057f705",
   "language": "en",
   "wishlist": [
     {
       "pavilion_id": "jp",
-      "reason": "You asked for it by name"
+      "reason": "You asked for it by name",
+      "source": "fallback"
     },
     {
       "pavilion_id": "kr",
-      "reason": "Matches your interest in technology"
+      "reason": "Matches your interest in technology",
+      "source": "fallback"
     },
     {
       "pavilion_id": "cn",
-      "reason": "Matches your interest in culture"
+      "reason": "Matches your interest in culture",
+      "source": "fallback"
     },
     {
       "pavilion_id": "ksa",
-      "reason": "Matches your interest in culture"
+      "reason": "Matches your interest in culture",
+      "source": "fallback"
     },
     {
       "pavilion_id": "fr",
-      "reason": "Matches your interest in culture"
+      "reason": "Matches your interest in culture",
+      "source": "fallback"
     },
     {
       "pavilion_id": "th_technology",
-      "reason": "Matches your interest in technology"
+      "reason": "Matches your interest in technology",
+      "source": "fallback"
     },
     {
       "pavilion_id": "de",
-      "reason": "Matches your interest in technology"
+      "reason": "Matches your interest in technology",
+      "source": "fallback"
     },
     {
       "pavilion_id": "ae",
-      "reason": "Matches your interest in technology"
+      "reason": "Matches your interest in technology",
+      "source": "fallback"
     }
   ],
   "wishlist_source": "fallback",
   "route": {
-    "visitor_id": "v_a72b760dd9",
+    "visitor_id": "v_977057f705",
     "version": 1,
-    "generated_at": "2026-10-10T20:30:00+03:00",
+    "generated_at": "2026-10-11T19:50:00+03:00",
     "start_point": "metro",
-    "end_time": "2026-10-11T00:30:00+03:00",
+    "end_time": "2026-10-11T23:50:00+03:00",
     "stops": [
       {
         "order": 1,
         "pavilion_id": "cn",
         "walk_from_prev_min": 12,
-        "arrive_at": "2026-10-10T20:42:00+03:00",
-        "wait_min": 50,
+        "arrive_at": "2026-10-11T20:02:00+03:00",
+        "wait_min": 43,
         "visit_min": 25,
-        "leave_at": "2026-10-10T21:57:00+03:00",
+        "leave_at": "2026-10-11T21:10:00+03:00",
+        "walk_m": 893,
         "path": [
           "metro",
           "fr",
@@ -63,42 +72,42 @@
       },
       {
         "order": 2,
-        "pavilion_id": "jp",
-        "walk_from_prev_min": 19,
-        "arrive_at": "2026-10-10T22:16:00+03:00",
-        "wait_min": 36,
+        "pavilion_id": "kr",
+        "walk_from_prev_min": 17,
+        "arrive_at": "2026-10-11T21:27:00+03:00",
+        "wait_min": 38,
         "visit_min": 20,
-        "leave_at": "2026-10-10T23:12:00+03:00",
+        "leave_at": "2026-10-11T22:25:00+03:00",
+        "walk_m": 1295,
         "path": [
           "cn",
-          "th_culture",
-          "it",
-          "ae",
-          "th_collaboration",
-          "gb",
-          "jp"
+          "fr",
+          "plaza_south",
+          "icon",
+          "ksa",
+          "kr"
         ],
         "landmarks": [
-          "th_culture",
-          "it",
-          "ae",
-          "th_collaboration",
-          "gb"
+          "fr",
+          "plaza_south",
+          "icon",
+          "ksa"
         ],
-        "shaded_pct": 82
+        "shaded_pct": 71
       },
       {
         "order": 3,
-        "pavilion_id": "kr",
+        "pavilion_id": "jp",
         "walk_from_prev_min": 7,
-        "arrive_at": "2026-10-10T23:19:00+03:00",
-        "wait_min": 28,
+        "arrive_at": "2026-10-11T22:32:00+03:00",
+        "wait_min": 35,
         "visit_min": 20,
-        "leave_at": "2026-10-11T00:07:00+03:00",
+        "leave_at": "2026-10-11T23:27:00+03:00",
+        "walk_m": 532,
         "path": [
-          "jp",
+          "kr",
           "th_technology",
-          "kr"
+          "jp"
         ],
         "landmarks": [
           "th_technology"
@@ -107,9 +116,12 @@
       }
     ],
     "totals": {
-      "walk_min": 38,
-      "wait_min": 114,
-      "stops": 3
+      "walk_min": 36,
+      "wait_min": 116,
+      "stops": 3,
+      "distance_km": 2.7,
+      "baseline_wait_min": 116,
+      "saved_wait_min": 0
     },
     "feasibility": {
       "fits": 3,

@@ -14,7 +14,7 @@ and old bookings at times people didn't actually arrive would create phantom que
 
     book(visitor_id, pid, t, people=1)    reserve one expected arrival (people = group size)
     release(visitor_id, after=None)       drop a visitor's reservations (all, or from a time on)
-    forecast(pid, now, queue_now) -> list of waits per slot from now on
+    forecast(pid, now, queue_now) -> Outlook (.wait_at(slot) = minutes)
 """
 from __future__ import annotations
 
@@ -64,18 +64,35 @@ class Ledger:
             self.bookings[visitor_id] = keep
 
     # ---- reads ----
-    def forecast(self, pid: str, now: datetime, queue_now: float = 0.0) -> tuple[int, list[float]]:
-        """(first slot, waits in minutes for arriving in each slot from now to the horizon)."""
+    def forecast(self, pid: str, now: datetime, queue_now: float = 0.0) -> "Outlook":
+        """Waits for arriving at pid in each slot from now on (see Outlook.wait_at).
+        Only the next TRUST_H hours of bookings are simulated; after that the queue just
+        drains at the pavilion's rate, which is computed directly instead of slot by slot."""
         rate = rate_per_min(pid)
         served = rate * SLOT_MIN
         s0, arr = self.slot(now), self.arrivals[pid]
+        last_trusted = min(N_SLOTS - 1, s0 + int(TRUST_H * 60 / SLOT_MIN))
         waits, backlog = [], max(0.0, queue_now)
-        for s in range(s0, N_SLOTS):
-            trusted = s0 < s <= s0 + TRUST_H * 60 / SLOT_MIN   # this slot's bookings are mostly in line already
-            future = arr[s] if trusted else 0.0
+        for s in range(s0, last_trusted + 1):
+            future = arr[s] if s > s0 else 0.0    # this slot's bookings are mostly in line already
             waits.append((backlog + future / 2) / rate)
             backlog = max(0.0, backlog + future - served)
-        return s0, waits
+        return Outlook(s0, waits, backlog, served, rate)
+
+
+class Outlook:
+    """Result of Ledger.forecast: per-slot waits for the trusted window, then a draining queue."""
+    __slots__ = ("s0", "waits", "backlog_after", "served", "rate")
+
+    def __init__(self, s0: int, waits: list[float], backlog_after: float, served: float, rate: float):
+        self.s0, self.waits, self.backlog_after, self.served, self.rate = s0, waits, backlog_after, served, rate
+
+    def wait_at(self, slot: int) -> float:
+        i = max(slot - self.s0, 0)
+        if i < len(self.waits):
+            return self.waits[i]
+        drained = self.served * (i - len(self.waits))
+        return max(0.0, self.backlog_after - drained) / self.rate
 
     def expected_arrivals(self, pid: str, t: datetime) -> float:
         return self.arrivals[pid][self.slot(t)]

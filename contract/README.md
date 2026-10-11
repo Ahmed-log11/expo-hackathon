@@ -26,25 +26,42 @@ The team's earlier proposal (separate `POST /plan`, `/checkin`, `/location`, `cr
 | POST | `/visitors` | Interests → wishlist → route | `POST_visitors.request.json` / `.response.json` |
 | GET | `/visitors/{id}/route` | Current full route | `GET_visitor_route.json` |
 | GET | `/visitors/{id}/next` | Next-stop card | `GET_visitor_next.json` |
-| POST | `/visitors/{id}/events` | Visitor `entered` / `left` a pavilion | `POST_visitor_events.*` |
+| POST | `/visitors/{id}/events` | `{type, pavilion_id, at?}`; type `arrived` (joined the line), `entered` (got in), `left` (finished; advances the route). With arrived + entered the summary shows the real wait | `POST_visitor_events.*` |
+| GET | `/visitors/{id}/summary` | Day so far / end of day: visited pavilions with waits (`measured` or `estimated`), totals (`pavilions, wait_min, visit_min, distance_km, saved_min`), `saved_breakdown`, `reroutes_accepted`, `eased` (pavilions they helped relieve by accepting an offer) | `GET_visitor_summary.json` |
 | POST | `/visitors/{id}/adjust` | "Adjust my plan" preview (stub until C7) | `POST_visitor_adjust.*` |
 | POST | `/visitors/{id}/offers/{offer_id}/accept` | Visitor took the new route; returns it (version + 1). `410` `offer_unavailable` (expired / gone) or `offer_stale` (plan changed) | `POST_offer_accept.response.json` |
 | POST | `/visitors/{id}/offers/{offer_id}/decline` | Visitor kept their plan; `{"ok": true}`. Same `410` errors | — |
 
 ### POST /visitors
 
-Request: `interests` (required, free text, Arabic or English), `language` (default `en`), `end_time` (optional, default now + 4 h), `start_point` (any place ID, default `metro`).
+Request (at least one of `interests`, `interest_tags`, `must_visit`):
 
-Response: `visitor_id`, `wishlist` (4–8 items, `{pavilion_id, reason}`, most relevant first), `wishlist_source` (`llm` or `fallback`), `route`.
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `interests` | string | — | Free text, Arabic or English (goes through the LLM) |
+| `interest_tags` | list | `[]` | Wizard chips: `culture`, `technology`, `arts`, `sustainability`, `interactive`, `food` |
+| `must_visit` | list of pavilion IDs | `[]` | Pavilions the visitor picked (max 8). Kept even when busy, at their quietest time |
+| `language` | `ar` / `en` | `en` | Language of every text field returned |
+| `start_time` | ISO time | now | Later today or another day (up to 30 days ahead) |
+| `end_time` | ISO time | start + 4 h | When they leave |
+| `start_point` | place ID | `metro` | Where they enter |
+| `group_size` | int 1-20 | 1 | Booked as that many people |
+
+Plans stay inside opening hours (assumed 10:00-24:00): an earlier start moves to opening, and every visit ends by closing.
+
+Response: `visitor_id`, `wishlist` (up to 8 items, `{pavilion_id, reason, source}`; `source` = `picked`, `llm`, `fallback` or `interests`; picked first, then free text, then chips), `wishlist_source` (`llm`, `fallback`, or `none` when no free text), `route`.
+
+Errors (`422`): `empty_interests`, `unknown_interest`, `unknown_pavilion`, `unknown_start_point`, `start_time_in_past`, `start_time_too_far`, `end_time_in_past`, `outside_opening_hours`, `invalid_request`.
 
 ### Route object
 
 | Field | Meaning |
 | --- | --- |
 | `version` | Increments on every replan. The app ignores a reroute with a version ≤ the one it has. |
-| `stops[]` | `order, pavilion_id, walk_from_prev_min, arrive_at, wait_min, visit_min, leave_at, path[], landmarks[]`. `path` and `landmarks` hold place IDs; the app shows `name_en` or `name_ar` from `/pavilions`. `shaded_pct` = share of the walk in shade. |
+| `stops[]` | `order, pavilion_id, walk_from_prev_min, walk_m, arrive_at, wait_min, visit_min, leave_at, path[], landmarks[]`. `path` and `landmarks` hold place IDs; the app shows `name_en` or `name_ar` from `/pavilions`. `shaded_pct` = share of the walk in shade. |
 | `totals` | `walk_min, wait_min, stops` |
-| `feasibility` | `fits, requested, dropped[], too_busy[]`. `dropped` = every wish not on the route; `too_busy` = the subset skipped because the queue is over 60 min all day ("Germany is over an hour all day; skipped"). |
+| `totals` | `walk_min, wait_min, stops, distance_km`; on a new plan also `baseline_wait_min` (the same stops visited the usual way: always walking to the nearest next, ignoring queues) and `saved_wait_min` (= baseline - wait, never negative) for "this plan saves you X". It can honestly be 0 when the usual order is already the best. |
+| `feasibility` | `fits, requested, dropped[], too_busy[]`. `dropped` = every wish not on the route; `too_busy` = the subset skipped because the queue is too long the whole visit (over 60 min for suggested pavilions, over 150 min at its quietest for picked ones). |
 | `summary` | `null` for now. Will hold the LLM summary, filled after the route (the app never waits on it). |
 
 ## WebSocket: `/live/{visitor_id}`

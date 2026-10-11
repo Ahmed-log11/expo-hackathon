@@ -1,0 +1,134 @@
+{
+  "visitor_id": "v_06e56d7f67",
+  "language": "ar",
+  "wishlist": [
+    {
+      "pavilion_id": "jp",
+      "reason": "اخترته بنفسك",
+      "source": "picked"
+    },
+    {
+      "pavilion_id": "kr",
+      "reason": "اخترته بنفسك",
+      "source": "picked"
+    },
+    {
+      "pavilion_id": "th_technology",
+      "reason": "يناسب اهتمامك بـالتقنية",
+      "source": "interests"
+    },
+    {
+      "pavilion_id": "de",
+      "reason": "يناسب اهتمامك بـالتقنية",
+      "source": "interests"
+    },
+    {
+      "pavilion_id": "cn",
+      "reason": "يناسب اهتمامك بـالتقنية",
+      "source": "interests"
+    },
+    {
+      "pavilion_id": "ae",
+      "reason": "يناسب اهتمامك بـالتقنية",
+      "source": "interests"
+    },
+    {
+      "pavilion_id": "ksa",
+      "reason": "يناسب اهتمامك بـالتقنية",
+      "source": "interests"
+    },
+    {
+      "pavilion_id": "us",
+      "reason": "يناسب اهتمامك بـالتقنية",
+      "source": "interests"
+    }
+  ],
+  "wishlist_source": "none",
+  "route": {
+    "visitor_id": "v_06e56d7f67",
+    "version": 1,
+    "generated_at": "2026-10-12T16:00:00+03:00",
+    "start_point": "metro",
+    "end_time": "2026-10-12T21:00:00+03:00",
+    "stops": [
+      {
+        "order": 1,
+        "pavilion_id": "jp",
+        "walk_from_prev_min": 19,
+        "arrive_at": "2026-10-12T16:19:00+03:00",
+        "wait_min": 48,
+        "visit_min": 20,
+        "leave_at": "2026-10-12T17:27:00+03:00",
+        "walk_m": 1439,
+        "path": [
+          "metro",
+          "fr",
+          "plaza_south",
+          "icon",
+          "ksa",
+          "jp"
+        ],
+        "landmarks": [
+          "fr",
+          "plaza_south",
+          "icon",
+          "ksa"
+        ],
+        "shaded_pct": 64
+      },
+      {
+        "order": 2,
+        "pavilion_id": "th_technology",
+        "walk_from_prev_min": 4,
+        "arrive_at": "2026-10-12T17:31:00+03:00",
+        "wait_min": 50,
+        "visit_min": 30,
+        "leave_at": "2026-10-12T18:51:00+03:00",
+        "walk_m": 266,
+        "path": [
+          "jp",
+          "th_technology"
+        ],
+        "landmarks": [],
+        "shaded_pct": 100
+      },
+      {
+        "order": 3,
+        "pavilion_id": "kr",
+        "walk_from_prev_min": 4,
+        "arrive_at": "2026-10-12T18:55:00+03:00",
+        "wait_min": 44,
+        "visit_min": 20,
+        "leave_at": "2026-10-12T19:59:00+03:00",
+        "walk_m": 266,
+        "path": [
+          "th_technology",
+          "kr"
+        ],
+        "landmarks": [],
+        "shaded_pct": 100
+      }
+    ],
+    "totals": {
+      "walk_min": 27,
+      "wait_min": 142,
+      "stops": 3,
+      "distance_km": 2.0,
+      "baseline_wait_min": 142,
+      "saved_wait_min": 0
+    },
+    "feasibility": {
+      "fits": 3,
+      "requested": 8,
+      "dropped": [
+        "de",
+        "cn",
+        "ae",
+        "ksa",
+        "us"
+      ],
+      "too_busy": []
+    },
+    "summary": null
+  }
+}
