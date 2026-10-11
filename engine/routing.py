@@ -24,21 +24,26 @@ from engine.ledger import Ledger
 from engine.site import DEFAULT_START, PAVILIONS, walk
 
 EXACT_MAX = 7              # exact search up to this many stops (7! = 5040 orders, pruned)
-MAX_WAIT_MIN = 60          # never plan a stop into a longer queue; come back later or skip it
+MAX_WAIT_MIN = 60          # never plan a SUGGESTED stop into a longer queue; come back later or skip it
+PICKED_MAX_WAIT_MIN = 150  # a pavilion the visitor picked: go at its quietest time, unless even that is over this
+OPEN_H, CLOSE_H = 10, 24   # Expo opening hours (assumed; 24 = midnight). Plans stay inside them.
 REROUTE_MIN_SAVING = 10    # only reroute if it saves at least this many minutes
 REROUTE_COOLDOWN_MIN = 15  # and at most once per this many minutes per visitor
 
 CROWD = CrowdState(use_prior=True)
-LEDGER: Ledger | None = None
+LEDGERS: dict = {}            # service day -> Ledger (a day runs 04:00 to 04:00)
+DAY_START_H = 4
 _routes: dict[str, dict] = {}
 _meta: dict[str, dict] = {}   # visitor_id -> {"group": n, "last_reroute": datetime|None}
 
 
 def reset(use_prior: bool = True, day0: datetime | None = None) -> None:
     """Fresh engine state (used by experiments and tests)."""
-    global CROWD, LEDGER
+    global CROWD
     CROWD = CrowdState(use_prior=use_prior)
-    LEDGER = Ledger(day0) if day0 else None
+    LEDGERS.clear()
+    if day0:
+        _ledger_for(day0)
     _routes.clear()
     _meta.clear()
     _offers.clear()
@@ -46,10 +51,13 @@ def reset(use_prior: bool = True, day0: datetime | None = None) -> None:
 
 
 def _ledger_for(t: datetime) -> Ledger:
-    global LEDGER
-    if LEDGER is None:
-        LEDGER = Ledger(t)
-    return LEDGER
+    """The ledger of t's service day. After-midnight times belong to the previous day,
+    so a plan that runs past midnight stays in one ledger."""
+    day_ref = t - timedelta(hours=DAY_START_H)
+    key = day_ref.date()
+    if key not in LEDGERS:
+        LEDGERS[key] = Ledger(day_ref)
+    return LEDGERS[key]
 
 
 def _iso(t: datetime) -> str:
@@ -68,7 +76,7 @@ class Forecast:
     def __init__(self, now: datetime, use_ledger: bool = True) -> None:
         self.now, self.use_ledger = now, use_ledger
         self.led = _ledger_for(now)
-        self._cache: dict[str, tuple[int, list[float]]] = {}
+        self._cache: dict = {}
 
     def wait(self, pid: str, t: datetime) -> float:
         background = CROWD.base_wait(pid, t)
@@ -76,9 +84,7 @@ class Forecast:
             return background
         if pid not in self._cache:
             self._cache[pid] = self.led.forecast(pid, self.now, 0.0)
-        s0, routed = self._cache[pid]
-        i = min(max(self.led.slot(t) - s0, 0), len(routed) - 1)
-        return background + routed[i]
+        return background + self._cache[pid].wait_at(self.led.slot(t))
 
 
 def expected_wait(pid: str, t: datetime, now: datetime | None = None, use_ledger: bool = True) -> float:
@@ -87,10 +93,13 @@ def expected_wait(pid: str, t: datetime, now: datetime | None = None, use_ledger
 
 # ---------- search ----------
 def _best_order(wishes: list[str], here: str, t0: datetime, end: datetime, use_ledger: bool,
-                max_wait: float = MAX_WAIT_MIN):
+                caps: dict[str, float] | None = None):
     """Earliest-finishing feasible order of ALL wishes, or None."""
     fc = Forecast(t0, use_ledger)
     wait_at = fc.wait
+
+    def cap(pid: str) -> float:
+        return (caps or {}).get(pid, MAX_WAIT_MIN)
 
     def step(cur: str, t: datetime, pid: str) -> tuple[datetime, int, int]:
         w = walk(cur, pid)["minutes"]
@@ -109,7 +118,7 @@ def _best_order(wishes: list[str], here: str, t0: datetime, end: datetime, use_l
                 return
             for pid in left:
                 leave, _, wt = step(cur, t, pid)
-                if leave > end or wt > max_wait or (best[0] is not None and leave >= best[0]):
+                if leave > end or wt > cap(pid) or (best[0] is not None and leave >= best[0]):
                     continue  # infeasible, queue too long right then, or already worse than the best
                 order.append(pid)
                 dfs(pid, leave, [p for p in left if p != pid], order)
@@ -123,7 +132,7 @@ def _best_order(wishes: list[str], here: str, t0: datetime, end: datetime, use_l
         cur, t = here, t0
         for pid in order:
             t, _, wt = step(cur, t, pid)
-            if t > end or wt > max_wait:
+            if t > end or wt > cap(pid):
                 return None
             cur = pid
         return t
@@ -147,18 +156,32 @@ def _best_order(wishes: list[str], here: str, t0: datetime, end: datetime, use_l
     return order if best_f else None
 
 
-def _too_busy(wishes: list[str], t0: datetime, end: datetime, use_ledger: bool) -> list[str]:
-    """Wishes whose expected wait is over MAX_WAIT_MIN at every moment until the visitor leaves."""
-    fc, out = Forecast(t0, use_ledger), []
+def _caps(wishes: list[str], here: str, t0: datetime, end: datetime, use_ledger: bool,
+          picked: set[str]) -> tuple[dict[str, float], list[str]]:
+    """Per-pavilion wait limits, and the wishes to skip as too busy.
+
+    Suggested pavilions: never plan into a queue over MAX_WAIT_MIN; if it's over that at every
+    moment of the visit, skip it. Picked pavilions (the visitor chose them): go at the quietest
+    time, allowing up to 10 min over that quietest wait; skip only if even that is over
+    PICKED_MAX_WAIT_MIN."""
+    fc, caps, too_busy = Forecast(t0, use_ledger), {}, []
     for pid in wishes:
-        t, last = t0, end - timedelta(minutes=PAVILIONS[pid]["avg_visit_min"])
-        ok = False
-        while t <= last and not ok:
-            ok = fc.wait(pid, t) <= MAX_WAIT_MIN
+        t = t0 + timedelta(minutes=walk(here, pid)["minutes"])     # the earliest they can be there
+        last, quietest = end - timedelta(minutes=PAVILIONS[pid]["avg_visit_min"]), float("inf")
+        while t <= last:
+            quietest = min(quietest, fc.wait(pid, t))
+            if pid not in picked and quietest <= MAX_WAIT_MIN:
+                break                                # a suggestion only needs one good moment
             t += timedelta(minutes=10)
-        if not ok:
-            out.append(pid)
-    return out
+        if pid in picked:
+            caps[pid] = max(MAX_WAIT_MIN, quietest + 10)
+            limit = PICKED_MAX_WAIT_MIN
+        else:
+            caps[pid] = MAX_WAIT_MIN
+            limit = MAX_WAIT_MIN
+        if quietest > limit:
+            too_busy.append(pid)
+    return caps, too_busy
 
 
 def _materialize(visitor_id: str, order: list[str], here: str, t: datetime,
@@ -174,24 +197,52 @@ def _materialize(visitor_id: str, order: list[str], here: str, t: datetime,
             "order": len(stops) + 1, "pavilion_id": pid,
             "walk_from_prev_min": w["minutes"], "arrive_at": _iso(arrive),
             "wait_min": wait, "visit_min": visit, "leave_at": _iso(leave),
-            "path": w["path"], "landmarks": w["path"][1:-1], "shaded_pct": w["shaded_pct"],
+            "walk_m": w["meters"], "path": w["path"], "landmarks": w["path"][1:-1],
+            "shaded_pct": w["shaded_pct"],
         })
         here, t = pid, leave
     return stops
 
 
+def _baseline_wait(pids: list[str], here: str, t0: datetime, use_ledger: bool) -> int:
+    """What the same stops would cost visited the usual way: always walk to the nearest one
+    next, ignoring queues. This is the "usual order" on the plan-ready screen."""
+    fc, cur, t, left, total = Forecast(t0, use_ledger), here, t0, list(pids), 0
+    while left:
+        nxt = min(left, key=lambda p: walk(cur, p)["minutes"])
+        arrive = t + timedelta(minutes=walk(cur, nxt)["minutes"])
+        wait = round(fc.wait(nxt, arrive))
+        total += wait
+        t = arrive + timedelta(minutes=wait + PAVILIONS[nxt]["avg_visit_min"])
+        cur = nxt
+        left.remove(nxt)
+    return total
+
+
+def _totals(stops: list[dict], baseline_wait: int | None = None) -> dict:
+    wait = sum(st["wait_min"] for st in stops)
+    out = {"walk_min": sum(st["walk_from_prev_min"] for st in stops), "wait_min": wait,
+           "stops": len(stops), "distance_km": round(sum(st.get("walk_m", 0) for st in stops) / 1000, 1)}
+    if baseline_wait is not None:
+        out["baseline_wait_min"] = baseline_wait
+        out["saved_wait_min"] = max(0, baseline_wait - wait)
+    return out
+
+
 def _route(visitor_id: str, wishes: list[str], here: str, t0: datetime, end: datetime,
            requested: list[str], use_ledger: bool = True, book: bool = True) -> dict:
     keep = [w for w in dict.fromkeys(wishes) if w in PAVILIONS]
-    too_busy = _too_busy(keep, t0, end, use_ledger)
+    picked = set(_meta.get(visitor_id, {}).get("picked", []))
+    caps, too_busy = _caps(keep, here, t0, end, use_ledger, picked)
     keep = [w for w in keep if w not in too_busy]
     order = None
     while keep:
-        order = _best_order(keep, here, t0, end, use_ledger)
+        order = _best_order(keep, here, t0, end, use_ledger, caps)
         if order is not None:
             break
         keep = keep[:-1]          # drop the least wanted wish and try again
     stops = _materialize(visitor_id, order or [], here, t0, end, use_ledger)
+    baseline = _baseline_wait([st["pavilion_id"] for st in stops], here, t0, use_ledger)
 
     if book:
         people = _meta.get(visitor_id, {}).get("group", 1)
@@ -206,8 +257,7 @@ def _route(visitor_id: str, wishes: list[str], here: str, t0: datetime, end: dat
         "start_point": here,
         "end_time": _iso(end),
         "stops": stops,
-        "totals": {"walk_min": sum(s["walk_from_prev_min"] for s in stops),
-                   "wait_min": sum(s["wait_min"] for s in stops), "stops": len(stops)},
+        "totals": _totals(stops, baseline),
         "feasibility": {"fits": len(stops), "requested": len(requested),
                         "dropped": [w for w in requested if w not in planned],
                         "too_busy": too_busy},
@@ -217,14 +267,30 @@ def _route(visitor_id: str, wishes: list[str], here: str, t0: datetime, end: dat
 
 
 # ---------- public interface ----------
+def opening_hours(start: datetime, end: datetime) -> tuple[datetime, datetime]:
+    """Clamp a visit to the Expo day it starts in."""
+    day = (start - timedelta(hours=DAY_START_H)).replace(hour=0, minute=0, second=0, microsecond=0)
+    opens, closes = day + timedelta(hours=OPEN_H), day + timedelta(hours=CLOSE_H)
+    start = max(start, opens)
+    return start, max(start, min(end, closes))
+
+
 def plan(visitor_id: str, wishlist: list[str], start_time: datetime, end_time: datetime,
-         start_point: str = DEFAULT_START, group_size: int = 1, use_ledger: bool = True) -> dict:
-    """wishlist is in priority order. Books the result in the ledger."""
+         start_point: str = DEFAULT_START, group_size: int = 1, use_ledger: bool = True,
+         picked: list[str] | None = None) -> dict:
+    """wishlist is in priority order. picked = pavilions the visitor chose themselves
+    (kept even when busy, at their quietest time). Books the result in the ledger.
+    The plan is kept inside opening hours: it starts no earlier than opening and every
+    visit ends by closing."""
+    start_time, end_time = opening_hours(start_time, end_time)
     _meta[visitor_id] = {"group": max(1, group_size), "last_reroute": None, "use_ledger": use_ledger,
-                         "wishlist": list(dict.fromkeys(wishlist)), "done": [], "at": start_point}
+                         "wishlist": list(dict.fromkeys(wishlist)), "done": [], "at": start_point,
+                         "picked": list(picked or [])}
     _ledger_for(start_time).release(visitor_id)
     route = _route(visitor_id, wishlist, start_point, start_time, end_time,
                    _meta[visitor_id]["wishlist"], use_ledger, book=use_ledger)
+    _meta[visitor_id].update({"plan_saved": route["totals"].get("saved_wait_min", 0),
+                              "visits": {}, "visited": [], "accepted": []})
     _routes[visitor_id] = route
     return route
 
@@ -298,8 +364,8 @@ def _alternative(visitor_id: str, now: datetime):
     visitor's own future load. Leaves the ledger exactly as it found it.
     Returns (current_stops, candidate_route, minutes_saved) or None if not worth changing."""
     route = _routes.get(visitor_id)
-    if not route or not route["stops"]:
-        return None
+    if not route or not route["stops"] or datetime.fromisoformat(route["generated_at"]) > now:
+        return None                                  # nothing to change, or the day hasn't started
     led = _ledger_for(now)
     here, end = _position(visitor_id, route), datetime.fromisoformat(route["end_time"])
     wishes = [st["pavilion_id"] for st in route["stops"]]
@@ -374,14 +440,68 @@ def refresh(visitor_id: str, now: datetime) -> dict | None:
     requested = route["feasibility"]["requested"]
     route.update({
         "version": route["version"] + 1, "generated_at": _iso(now), "stops": stops,
-        "totals": {"walk_min": sum(st["walk_from_prev_min"] for st in stops),
-                   "wait_min": sum(st["wait_min"] for st in stops), "stops": len(stops)},
+        "totals": _totals(stops),
     })
     route["feasibility"]["fits"] = len(stops)
     route["feasibility"]["dropped"] = [w for w in meta.get("wishlist", []) if w not in planned
                                        and w not in set(meta.get("done", []))]
     route["feasibility"]["requested"] = requested
     return route
+
+
+# ---------- visits and the day summary ----------
+def record_event(visitor_id: str, kind: str, pavilion_id: str, at: datetime) -> None:
+    """kind: "arrived" (joined the line), "entered" (got in), "left" (finished the visit).
+    Measured times beat estimates in the summary; "left" also advances the route."""
+    meta = _meta.setdefault(visitor_id, {})
+    v = meta.setdefault("visits", {}).setdefault(pavilion_id, {})
+    route = _routes.get(visitor_id) or {"stops": []}
+    planned = next((st for st in route["stops"] if st["pavilion_id"] == pavilion_id), None)
+    if planned and "planned" not in v:
+        v["planned"] = {"wait_min": planned["wait_min"], "visit_min": planned["visit_min"],
+                        "walk_m": planned.get("walk_m", 0)}
+    v[kind] = at
+    if kind != "left":
+        return
+    p = v.get("planned", {})
+    measured = "arrived" in v and "entered" in v
+    wait = round((v["entered"] - v["arrived"]).total_seconds() / 60) if measured else p.get("wait_min", 0)
+    visit = (round((at - v["entered"]).total_seconds() / 60) if "entered" in v
+             else p.get("visit_min", PAVILIONS[pavilion_id]["avg_visit_min"]))
+    meta.setdefault("visited", []).append({
+        "pavilion_id": pavilion_id, "left_at": _iso(at), "wait_min": max(0, wait),
+        "wait_source": "measured" if measured else "estimated", "visit_min": max(0, visit),
+        "walk_m": p.get("walk_m", 0)})
+    meta["visits"].pop(pavilion_id, None)
+    mark_left(visitor_id, pavilion_id)
+
+
+def summary(visitor_id: str, now: datetime) -> dict | None:
+    """The end-of-day screen: what the visitor did and what the app saved them."""
+    route = _routes.get(visitor_id)
+    if route is None:
+        return None
+    meta = _meta.get(visitor_id, {})
+    visited, accepted = meta.get("visited", []), meta.get("accepted", [])
+    saved = meta.get("plan_saved", 0) + sum(a["saves_min"] for a in accepted)
+    return {
+        "visitor_id": visitor_id, "as_of": _iso(now),
+        "visited": visited,
+        "remaining": [st["pavilion_id"] for st in route["stops"]],
+        "not_visited": [w for w in meta.get("wishlist", []) if w not in {v["pavilion_id"] for v in visited}
+                        and w not in {st["pavilion_id"] for st in route["stops"]}],
+        "totals": {
+            "pavilions": len(visited),
+            "wait_min": sum(v["wait_min"] for v in visited),
+            "visit_min": sum(v["visit_min"] for v in visited),
+            "distance_km": round(sum(v["walk_m"] for v in visited) / 1000, 1),
+            "saved_min": saved,
+        },
+        "saved_breakdown": {"plan_min": meta.get("plan_saved", 0),
+                            "reroutes_min": sum(a["saves_min"] for a in accepted)},
+        "reroutes_accepted": len(accepted),
+        "eased": sorted({a["trigger"] for a in accepted if a["trigger"]}),   # "you helped ease Japan"
+    }
 
 
 # ---------- reroute offers (what the app shows: "we found a better route", accept / keep) ----------
@@ -401,9 +521,9 @@ class OfferError(Exception):
         self.code = code
 
 
-def _window(t: datetime) -> int:
+def _window(t: datetime) -> tuple:
     led = _ledger_for(t)
-    return int((t - led.day0).total_seconds() // (CAP_WINDOW_MIN * 60))
+    return led.day0.date(), int((t - led.day0).total_seconds() // (CAP_WINDOW_MIN * 60))
 
 
 def headroom(pid: str, t: datetime) -> float:
@@ -504,6 +624,9 @@ def accept_offer(visitor_id: str, offer_id: str, now: datetime) -> dict:
         _close_offer(offer_id, now, accepted=False)
         raise OfferError("offer_stale", "The plan changed since this offer was made")
     _close_offer(offer_id, now, accepted=True)     # held room becomes taken room
+    pub = o["public"]
+    _meta.setdefault(visitor_id, {}).setdefault("accepted", []).append(
+        {"saves_min": pub["saves_min"], "trigger": (pub.get("trigger") or {}).get("pavilion_id"), "at": _iso(now)})
     return _commit(visitor_id, o["candidate"], now)
 
 

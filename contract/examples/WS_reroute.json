@@ -1,23 +1,24 @@
 {
   "type": "reroute",
-  "visitor_id": "v_a72b760dd9",
-  "reason": "Japan Pavilion's wait jumped, so we updated your route.",
+  "visitor_id": "v_977057f705",
+  "reason": "South Korea Pavilion's wait jumped, so we updated your route.",
   "saves_min": 12,
   "route": {
-    "visitor_id": "v_a72b760dd9",
+    "visitor_id": "v_977057f705",
     "version": 2,
-    "generated_at": "2026-10-10T20:30:00+03:00",
+    "generated_at": "2026-10-11T19:50:00+03:00",
     "start_point": "cn",
-    "end_time": "2026-10-11T00:30:00+03:00",
+    "end_time": "2026-10-11T23:50:00+03:00",
     "stops": [
       {
         "order": 1,
         "pavilion_id": "fr",
         "walk_from_prev_min": 5,
-        "arrive_at": "2026-10-10T20:35:00+03:00",
-        "wait_min": 41,
+        "arrive_at": "2026-10-11T19:55:00+03:00",
+        "wait_min": 42,
         "visit_min": 25,
-        "leave_at": "2026-10-10T21:41:00+03:00",
+        "leave_at": "2026-10-11T21:02:00+03:00",
+        "walk_m": 375,
         "path": [
           "cn",
           "fr"
@@ -28,47 +29,48 @@
       {
         "order": 2,
         "pavilion_id": "ksa",
-        "walk_from_prev_min": 16,
-        "arrive_at": "2026-10-10T21:57:00+03:00",
-        "wait_min": 39,
+        "walk_from_prev_min": 9,
+        "arrive_at": "2026-10-11T21:11:00+03:00",
+        "wait_min": 46,
         "visit_min": 30,
-        "leave_at": "2026-10-10T23:06:00+03:00",
+        "leave_at": "2026-10-11T22:27:00+03:00",
+        "walk_m": 651,
         "path": [
           "fr",
-          "th_culture",
-          "it",
-          "convention",
+          "plaza_south",
           "icon",
           "ksa"
         ],
         "landmarks": [
-          "th_culture",
-          "it",
-          "convention",
+          "plaza_south",
           "icon"
         ],
         "shaded_pct": 100
       },
       {
         "order": 3,
-        "pavilion_id": "kr",
+        "pavilion_id": "jp",
         "walk_from_prev_min": 4,
-        "arrive_at": "2026-10-10T23:10:00+03:00",
-        "wait_min": 29,
+        "arrive_at": "2026-10-11T22:31:00+03:00",
+        "wait_min": 35,
         "visit_min": 20,
-        "leave_at": "2026-10-10T23:59:00+03:00",
+        "leave_at": "2026-10-11T23:26:00+03:00",
+        "walk_m": 269,
         "path": [
           "ksa",
-          "kr"
+          "jp"
         ],
         "landmarks": [],
         "shaded_pct": 100
       }
     ],
     "totals": {
-      "walk_min": 25,
-      "wait_min": 109,
-      "stops": 3
+      "walk_min": 18,
+      "wait_min": 123,
+      "stops": 3,
+      "distance_km": 1.3,
+      "baseline_wait_min": 123,
+      "saved_wait_min": 0
     },
     "feasibility": {
       "fits": 3,

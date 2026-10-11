@@ -1,0 +1,38 @@
+{
+  "visitor_id": "v_ab0403f166",
+  "as_of": "2026-10-11T19:50:00+03:00",
+  "visited": [
+    {
+      "pavilion_id": "kr",
+      "left_at": "2026-10-11T20:30:00+03:00",
+      "wait_min": 9,
+      "wait_source": "measured",
+      "visit_min": 31,
+      "walk_m": 1439
+    }
+  ],
+  "remaining": [
+    "cn",
+    "jp"
+  ],
+  "not_visited": [
+    "ksa",
+    "fr",
+    "th_technology",
+    "de",
+    "ae"
+  ],
+  "totals": {
+    "pavilions": 1,
+    "wait_min": 9,
+    "visit_min": 31,
+    "distance_km": 1.4,
+    "saved_min": 36
+  },
+  "saved_breakdown": {
+    "plan_min": 36,
+    "reroutes_min": 0
+  },
+  "reroutes_accepted": 0,
+  "eased": []
+}

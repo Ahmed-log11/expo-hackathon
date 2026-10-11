@@ -4,6 +4,6 @@ pydantic==2.10.3
 anthropic>=0.40.0
 websockets==14.1
 networkx==3.4.2
-numpy
-scikit-learn
-xgboost 
+numpy==2.2.6
+scikit-learn==1.6.1
+xgboost==3.4.1 

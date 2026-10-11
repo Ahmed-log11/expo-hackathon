@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import engine  # B's engine (api/engine_mock.py is the old stand-in)  # noqa: E402
-from llm.wishlist import extract_wishlist  # noqa: E402
+from llm.wishlist import CHIPS, extract_wishlist, from_chips  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("api")
@@ -122,6 +122,7 @@ async def crowd_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    engine.crowd_snapshot(now())   # warm-up: loads the ML model now, not on the first visitor
     task = asyncio.create_task(crowd_loop())
     yield
     task.cancel()
@@ -146,16 +147,25 @@ async def validation_error(_: Request, exc: RequestValidationError):
 
 
 # ---------- request models ----------
+MAX_WISHES = 8
+
+
 class NewVisitor(BaseModel):
-    interests: str = Field(min_length=2, max_length=1000)
+    """At least one of interests / interest_tags / must_visit is required."""
+    interests: str | None = Field(default=None, max_length=1000)        # free text (LLM)
+    interest_tags: list[str] = Field(default_factory=list)                # wizard chips
+    must_visit: list[str] = Field(default_factory=list, max_length=MAX_WISHES)  # picked pavilions
     language: Literal["ar", "en"] = "en"
-    end_time: datetime | None = None  # default: 4 hours from now
+    start_time: datetime | None = None   # default: now; may be later today or another day
+    end_time: datetime | None = None     # default: start + 4 hours
     start_point: str = engine.DEFAULT_START
+    group_size: int = Field(default=1, ge=1, le=20)
 
 
 class VisitEvent(BaseModel):
-    type: Literal["entered", "left"]
+    type: Literal["arrived", "entered", "left"]   # joined the line / got in / finished
     pavilion_id: str
+    at: datetime | None = None                    # default: now (the app may send the scan time)
 
 
 class AdjustRequest(BaseModel):
@@ -190,21 +200,63 @@ def crowd():
     return {"updated_at": msg["updated_at"], "pavilions": msg["pavilions"]}
 
 
+def build_wishlist(body: NewVisitor) -> tuple[list[dict], str]:
+    """Picked pavilions first, then what the free text asks for, then interest chips.
+    Each item: {pavilion_id, reason, source}. Returns (items, source of the text part)."""
+    ar = body.language == "ar"
+    items: list[dict] = [{"pavilion_id": pid, "reason": "اخترته بنفسك" if ar else "You picked it",
+                          "source": "picked"} for pid in dict.fromkeys(body.must_visit)]
+    text_source = "none"
+    queued = list(engine.PAVILIONS.values())
+    if body.interests and body.interests.strip():
+        wl = extract_wishlist(body.interests, body.language, queued)
+        text_source = wl["source"]
+        items += [{**w, "source": text_source} for w in wl["items"]]
+    if body.interest_tags:
+        items += [{**w, "source": "interests"} for w in from_chips(body.interest_tags, body.language, queued)]
+    seen, out = set(), []
+    for it in items:
+        if it["pavilion_id"] not in seen:
+            seen.add(it["pavilion_id"])
+            out.append(it)
+    picked = [i for i in out if i["source"] == "picked"]
+    return picked + [i for i in out if i["source"] != "picked"][:max(0, MAX_WISHES - len(picked))], text_source
+
+
 @app.post("/visitors", status_code=201)
 def create_visitor(body: NewVisitor):
     if body.start_point not in engine.POINTS:
         raise err(422, "unknown_start_point", f"Unknown start_point {body.start_point}")
-    start = now()
-    end = (body.end_time.astimezone(RIYADH) if body.end_time else start + timedelta(hours=4))
-    if end <= start:
-        raise err(422, "end_time_in_past", "end_time must be in the future")
+    unknown = [p for p in body.must_visit if p not in engine.PAVILIONS]
+    if unknown:
+        raise err(422, "unknown_pavilion", f"Unknown pavilion(s) in must_visit: {', '.join(unknown)}")
+    bad_tags = [t for t in body.interest_tags if t not in CHIPS]
+    if bad_tags:
+        raise err(422, "unknown_interest", f"Unknown interest_tags: {', '.join(bad_tags)}; use {', '.join(CHIPS)}")
+    if not ((body.interests or "").strip() or body.interest_tags or body.must_visit):
+        raise err(422, "empty_interests", "Send interests, interest_tags or must_visit")
 
-    wl = extract_wishlist(body.interests, body.language, list(engine.PAVILIONS.values()))
+    current = now()
+    start = body.start_time.astimezone(RIYADH) if body.start_time else current
+    if start < current - timedelta(minutes=5):
+        raise err(422, "start_time_in_past", "start_time must be now or later")
+    if start > current + timedelta(days=30):
+        raise err(422, "start_time_too_far", "Plans can be made up to 30 days ahead")
+    start = max(start, current)
+    end = body.end_time.astimezone(RIYADH) if body.end_time else start + timedelta(hours=4)
+    if end <= start:
+        raise err(422, "end_time_in_past", "end_time must be after start_time")
+    open_start, open_end = engine.opening_hours(start, end)
+    if open_end <= open_start:
+        raise err(422, "outside_opening_hours", "The Expo is closed for that whole time")
+
+    wishlist, text_source = build_wishlist(body)
     vid = "v_" + uuid.uuid4().hex[:10]
-    route = engine.plan(vid, [w["pavilion_id"] for w in wl["items"]], start, end, body.start_point)
-    visitors[vid] = {"language": body.language, "wishlist": wl["items"], "created_at": start.isoformat()}
-    return {"visitor_id": vid, "language": body.language, "wishlist": wl["items"],
-            "wishlist_source": wl["source"], "route": route}
+    route = engine.plan(vid, [w["pavilion_id"] for w in wishlist], start, end, body.start_point,
+                        group_size=body.group_size, picked=list(body.must_visit))
+    visitors[vid] = {"language": body.language, "wishlist": wishlist, "created_at": current.isoformat()}
+    return {"visitor_id": vid, "language": body.language, "wishlist": wishlist,
+            "wishlist_source": text_source, "route": route}
 
 
 @app.get("/visitors/{vid}/route")
@@ -227,9 +279,16 @@ def visit_event(vid: str, body: VisitEvent):
     _visitor(vid)
     if body.pavilion_id not in engine.PAVILIONS:
         raise err(422, "unknown_pavilion", f"Unknown pavilion {body.pavilion_id}")
-    if body.type == "left":
-        engine.mark_left(vid, body.pavilion_id)
-    return {"ok": True, "at": now().isoformat()}
+    at = body.at.astimezone(RIYADH) if body.at else now()
+    engine.record_event(vid, body.type, body.pavilion_id, at)
+    return {"ok": True, "at": at.isoformat()}
+
+
+@app.get("/visitors/{vid}/summary")
+def visitor_summary(vid: str):
+    """The day so far / end of day: visited pavilions, real or estimated waits, km, minutes saved."""
+    _visitor(vid)
+    return engine.summary(vid, now())
 
 
 @app.post("/visitors/{vid}/adjust")

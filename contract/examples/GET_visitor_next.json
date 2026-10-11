@@ -1,10 +1,10 @@
 {
-  "visitor_id": "v_a72b760dd9",
+  "visitor_id": "v_977057f705",
   "route_version": 1,
   "pavilion_id": "cn",
   "walk_min": 12,
-  "wait_min": 50,
-  "arrive_at": "2026-10-10T20:42:00+03:00",
+  "wait_min": 43,
+  "arrive_at": "2026-10-11T20:02:00+03:00",
   "path": [
     "metro",
     "fr",

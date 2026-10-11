@@ -95,6 +95,7 @@ def _all_walks() -> dict[tuple[str, str], dict]:
             shaded = sum(e["minutes"] for e in legs if e["shaded"])
             out[a, b] = {
                 "minutes": max(1, round(total)) if a != b else 0,
+                "meters": round(total * WALK_M_PER_MIN),
                 "path": path,
                 "shaded_pct": round(100 * shaded / total) if total else 100,
             }
@@ -105,5 +106,5 @@ WALKS = _all_walks()
 
 
 def walk(a: str, b: str) -> dict:
-    """{"minutes": int, "path": [ids], "shaded_pct": int} for the best walk from a to b."""
+    """{"minutes": int, "meters": int, "path": [ids], "shaded_pct": int} for the best walk from a to b."""
     return WALKS[a, b]
