@@ -18,7 +18,10 @@ import math
 from datetime import datetime
 
 from engine.site import PAVILIONS
-from ml.predict import predict_wait
+from ml.predict import RIYADH_WEEKEND, predict_wait
+
+AVG_DAILY_VISITORS = 230_000   # Expo 2030 expected average per day
+WEEKEND_RATIO = 1.4            # a weekend day vs a weekday (check against the training data)
 PERSIST_MIN = 30
 FADE_MIN = 60
 PEAK_HOUR = 19.5
@@ -59,12 +62,34 @@ class CrowdState:
 def rate_per_min(pid: str) -> float:
     return PAVILIONS[pid]["capacity_per_hour"] / 60
 
+def expected_visitors(t: datetime) -> float:
+    """Visitors expected that day: same weekly average, weekends busier than weekdays."""
+    weekday = AVG_DAILY_VISITORS * 7 / (5 + 2 * WEEKEND_RATIO)
+    return weekday * WEEKEND_RATIO if t.weekday() in RIYADH_WEEKEND else weekday
+
+# Riyadh correction on top of the model (which learned European parks):
+# hour -> multiplier. 1.0 = trust the model as is. Between hours it moves in a straight line.
+RIYADH_FACTOR = {10: 1.0, 12: 1.0, 13: 0.9, 14: 0.8, 15: 0.7, 16: 1.0,
+                 17: 1.15, 18: 1.2, 20: 1.2, 21: 1.15, 22: 1.0, 24: 1.0}
+_FACTOR_PTS = sorted(RIYADH_FACTOR.items())
+
+
+def riyadh_factor(hour: float) -> float:
+    pts = _FACTOR_PTS
+    if hour <= pts[0][0]:
+        return pts[0][1]
+    for (h0, f0), (h1, f1) in zip(pts, pts[1:]):
+        if hour <= h1:
+            return f0 + (f1 - f0) * (hour - h0) / (h1 - h0)
+    return pts[-1][1]
+
 
 def prior_wait(pid: str, t: datetime) -> float:
-    """A's planning model; falls back to the popularity x evening curve if it isn't available."""
-    w = predict_wait(PAVILIONS[pid], t, pavilions=PAVILIONS)
+    """A's planning model x the Riyadh correction for that hour;
+    falls back to the popularity x evening curve if the model isn't available."""
+    w = predict_wait(PAVILIONS[pid], t, daily_visitors=expected_visitors(t), pavilions=PAVILIONS)
     if w is not None:
-        return w
+        return w * riyadh_factor(t.hour + t.minute / 60)
     hour = t.hour + t.minute / 60
     curve = 0.35 + 0.65 * math.exp(-((hour - PEAK_HOUR) ** 2) / 10)
     return PAVILIONS[pid].get("popularity", 3) * 11 * curve
