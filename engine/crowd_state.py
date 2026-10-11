@@ -18,7 +18,7 @@ import math
 from datetime import datetime
 
 from engine.site import PAVILIONS
-
+from ml.predict import predict_wait
 PERSIST_MIN = 30
 FADE_MIN = 60
 PEAK_HOUR = 19.5
@@ -39,6 +39,7 @@ class CrowdState:
 
     # ---- output ----
     def base_wait(self, pid: str, t: datetime) -> float:
+        
         """Observed wait held for PERSIST_MIN, then faded linearly into the prior over FADE_MIN."""
         normal = prior_wait(pid, t) if self.use_prior else 0.0
         obs = self.observed.get(pid)
@@ -60,7 +61,10 @@ def rate_per_min(pid: str) -> float:
 
 
 def prior_wait(pid: str, t: datetime) -> float:
-    """Popularity x evening-peaked curve. Popularity 5: ~55 min at peak, ~20 in the morning."""
+    """A's planning model; falls back to the popularity x evening curve if it isn't available."""
+    w = predict_wait(PAVILIONS[pid], t, pavilions=PAVILIONS)
+    if w is not None:
+        return w
     hour = t.hour + t.minute / 60
     curve = 0.35 + 0.65 * math.exp(-((hour - PEAK_HOUR) ** 2) / 10)
     return PAVILIONS[pid].get("popularity", 3) * 11 * curve

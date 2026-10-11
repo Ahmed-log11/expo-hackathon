@@ -46,8 +46,8 @@ SLOT_MIN = 15
 
 def attendance_per_ride(daily_visitors: float | None) -> float:
     v = TYPICAL_DAILY_VISITORS if daily_visitors is None else daily_visitors
-    return float(np.clip(TYPICAL_ATTENDANCE_PER_RIDE * v / TYPICAL_DAILY_VISITORS, *APR_RANGE))
-
+    apr = TYPICAL_ATTENDANCE_PER_RIDE * v / TYPICAL_DAILY_VISITORS
+    return min(max(apr, APR_RANGE[0]), APR_RANGE[1])     # plain min/max: np.clip is slow per call
 
 def park_hour(t: datetime) -> float:
     h = t.hour + t.minute / 60
@@ -94,16 +94,22 @@ def _day_table(weekend: int, apr: float, pavilions_key: tuple) -> dict:
                           iteration_range=(0, best + 1) if best is not None else None)
     return {k: max(0.0, float(p)) for k, p in zip(keys, preds)}
 
-
+_TABLES: dict[tuple, dict] = {}
 def predict_wait(pavilion: dict, t: datetime, daily_visitors: float | None = None,
                  pavilions: dict | None = None) -> float | None:
     """Expected wait in minutes at pavilion (a pavilions.json place) at time t, or None."""
     if not available():
         return None
     pavs = pavilions or {pavilion["id"]: pavilion}
-    key = tuple(sorted((p["id"], p.get("popularity", 3), float(p.get("capacity_per_hour", 1000)))
-                       for p in pavs.values()))
-    table = _day_table(int(t.weekday() in RIYADH_WEEKEND), attendance_per_ride(daily_visitors), key)
+    weekend, apr = int(t.weekday() in RIYADH_WEEKEND), attendance_per_ride(daily_visitors)
+    fast = (id(pavs), weekend, apr)                 # the engine asks thousands of times per plan
+    table = _TABLES.get(fast) if pavilions else None
+    if table is None:
+        key = tuple(sorted((p["id"], p.get("popularity", 3), float(p.get("capacity_per_hour", 1000)))
+                           for p in pavs.values()))
+        table = _day_table(weekend, apr, key)
+        if pavilions:
+            _TABLES[fast] = table
     return table.get((pavilion["id"], (t.hour * 60 + t.minute) // SLOT_MIN))
 
 

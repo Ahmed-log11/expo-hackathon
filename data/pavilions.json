@@ -517,6 +517,17 @@
       "on_loop": true
     },
     {
+  "id": "plaza_south",
+  "name_en": "South Plaza",
+  "name_ar": "الساحة الجنوبية",
+  "type": "landmark",
+  "district": "central",
+  "x": 50,
+  "y": 62,
+  "has_queue": false,
+  "on_loop": true
+},
+    {
       "id": "metro",
       "name_en": "Metro Gate",
       "name_ar": "بوابة المترو",
