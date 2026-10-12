@@ -3,7 +3,7 @@
  * Every value (positions, sizes, colours, type) comes from the Figma frames on the Prototype page.
  */
 import React, { useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View,TextInput } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -45,8 +45,8 @@ function WizardFrame({ step, title, subtitle, children, footer, scroll }: {
       )}
       {/* Nav bar: step label · progress · back */}
       <View style={{ position: 'absolute', top: s(56), left: s(16), right: s(16), height: s(46), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Txt style={[sf(400, 13, 19), { color: C.slate, width: s(44), textAlign: 'left' }]}>{`${step}/4`}</Txt>
-        <StepProgress step={step} />
+        <Txt style={[sf(400, 13, 19), { color: C.slate, width: s(44), textAlign: 'left' }]}>{`${step}/3`}</Txt>
+        <StepProgress step={step} total={3} />
         <RoundButton icon="chevron-right" onPress={() => nav.back()} />
       </View>
       {/* Bottom bar fades the content out behind the button */}
@@ -63,8 +63,7 @@ function WizardFrame({ step, title, subtitle, children, footer, scroll }: {
 }
 
 // ---------- 1/4 Time ----------
-const START_OPTIONS = [16, 17, 18, 19, 14, 15];
-const END_OPTIONS = [22, 21, 20, 23, 24];
+
 
 function atHour(base: Date, h: number) {
   const d = new Date(base);
@@ -82,17 +81,18 @@ export function PlanTime() {
   const day = plan.start;
   const dateLabel = `${dayLabel(day)} · ${AR_DAYS[day.getDay()]} ${day.getDate()} ${AR_MONTHS[day.getMonth()]}`;
   const stops = hours >= 6 ? '4 إلى 6' : hours >= 5 ? '4 إلى 5' : hours >= 4 ? '3 إلى 4' : '2 إلى 3';
-
-  const cycle = (opts: number[], cur: number) => opts[(opts.indexOf(Math.round(cur)) + 1) % opts.length] ?? opts[0];
-  const nextStart = () => {
-    const h = cycle(START_OPTIONS, startH);
+  const [note, setNote] = useState<string | null>(null);
+  const half = (h: number) => Math.round(h * 2) / 2;
+  const setStartH = (raw: number) => {
+    setNote(raw < 10 || raw > 23 ? 'إكسبو يفتح من 10:00 ص حتى 12:00 منتصف الليل' : null);
+    const h = Math.min(23, Math.max(10, half(raw)));
     const start = atHour(plan.start, h);
-    const end = endH - h < 2 ? atHour(plan.start, Math.min(24, h + 4)) : plan.end;
+    const end = endH - h < 1 ? atHour(plan.start, Math.min(24, h + 1)) : plan.end;
     setPlan({ start, end });
   };
-  const nextEnd = () => {
-    let h = cycle(END_OPTIONS, endH);
-    if (h - startH < 2) h = END_OPTIONS[0];
+  const setEndH = (raw: number) => {
+    setNote(raw > 24 ? 'إكسبو يقفل الساعة 12:00 منتصف الليل' : raw < startH + 1 ? 'لازم يكون وقت النهاية بعد البداية بساعة على الأقل' : null);
+    const h = Math.min(24, Math.max(startH + 1, half(raw)));
     setPlan({ end: atHour(plan.start, h) });
   };
 
@@ -108,8 +108,9 @@ export function PlanTime() {
           <Txt style={ar(600, 15, 22)}>{dateLabel}</Txt>
           <Icon name="calendar" size={20} color={C.aquaText} />
         </View>
-        <TimeSelector question="متى تبدأ زيارتك؟" value={fmtTime(plan.start)} onPress={nextStart} />
-        <TimeSelector question="متى تريد إنهاء يومك؟" value={fmtTime(plan.end)} onPress={nextEnd} />
+        <TimeSelector question="متى تبدأ زيارتك؟" value={hhmm(startH)} hour={startH} onSet={setStartH} isEnd={false} />
+          {note && <Txt style={[ar(500, 13, 19), { color: '#B4532A', alignSelf: 'stretch' }]}>{note}</Txt>}
+        <TimeSelector question="متى تريد إنهاء يومك؟" value={hhmm(endH)} hour={endH} onSet={setEndH} isEnd />
         <View style={{ alignSelf: 'stretch', backgroundColor: C.deep, borderRadius: s(26), padding: s(20), gap: s(12) }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: s(8) }}>
             <View style={{ width: s(44), height: s(44), borderRadius: s(20), backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' }}>
@@ -134,16 +135,50 @@ export function PlanTime() {
   );
 }
 
-function TimeSelector({ question, value, onPress }: { question: string; value: string; onPress: () => void }) {
+function parseTime(text: string, isEnd: boolean): number | null {
+  const m = text.trim().match(/^(\d{1,2})(?:[:.](\d{1,2}))?/);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = m[2] ? Number(m[2]) : 0;
+  if (isEnd && h === 0) h = 24;   // 00:00 في النهاية = منتصف الليل
+  return h + min / 60;
+}
+
+const hhmm = (h: number) => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;function TimeSelector({ question, value, hour, onSet, isEnd }: {
+  question: string; value: string; hour: number; onSet: (h: number) => void; isEnd: boolean;
+}) {
+  const [text, setText] = useState<string | null>(null);   // null = not editing
+  const done = () => {
+    if (text != null) { const h = parseTime(text, isEnd); if (h != null) onSet(h); }
+    setText(null);
+  };
   return (
-    <Pressy onPress={onPress} style={{ alignSelf: 'stretch' }}>
-      <View style={{ height: s(75), borderRadius: s(22), backgroundColor: C.white, padding: s(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Animated.View layout={layout} style={{ height: s(43), borderRadius: s(14), backgroundColor: '#E8F0ED', paddingHorizontal: s(14), justifyContent: 'center' }}>
-          <Animated.View key={value} entering={FadeIn.duration(M.standard)}>
-            <Txt style={ar(600, 17, 27)}>{value}</Txt>
-          </Animated.View>
-        </Animated.View>
-        <Txt style={ar(600, 17, 27)}>{question}</Txt>
+    <View style={{ alignSelf: 'stretch', height: s(75), borderRadius: s(22), backgroundColor: C.white, padding: s(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+        <StepBtn label="-" onPress={() => onSet(hour - 0.5)} />
+        <TextInput
+          value={text ?? value}
+          onFocus={() => setText('')}
+          onChangeText={setText}
+          onEndEditing={done}
+          onSubmitEditing={done}
+          placeholder="16:30"
+          keyboardType="numbers-and-punctuation"
+          returnKeyType="done"
+          style={{ fontFamily: ar(600, 17).fontFamily, fontSize: s(17), height: s(40), paddingVertical: 0, minWidth: s(72), textAlign: 'center', color: C.ink, backgroundColor: '#E8F0ED', borderRadius: s(12), paddingHorizontal: s(8) }}
+        />
+        <StepBtn label="+" onPress={() => onSet(hour + 0.5)} />
+      </View>
+      <Txt style={ar(600, 17, 27)}>{question}</Txt>
+    </View>
+  );
+}
+
+function StepBtn({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressy onPress={onPress}>
+      <View style={{ width: s(36), height: s(36), borderRadius: s(18), backgroundColor: '#E8F0ED', alignItems: 'center', justifyContent: 'center' }}>
+        <Txt style={[sf(600, 20, 24), { textAlign: 'center', color: C.deep }]}>{label}</Txt>
       </View>
     </Pressy>
   );
@@ -173,10 +208,9 @@ function DayTrack({ hours }: { hours: number }) {
 const INTERESTS: { key: string; label: string; icon: IconName; photo: keyof typeof PHOTOS; iconColor?: string }[] = [
   { key: 'technology', label: 'التقنية', icon: 'tech', photo: 'hero', iconColor: C.ink },
   { key: 'culture', label: 'الثقافة', icon: 'culture', photo: 'culture' },
-  { key: 'sustainability', label: 'الاستدامة', icon: 'leaf', photo: 'sustainability' },
-  { key: 'arts', label: 'الفنون', icon: 'art', photo: 'arts' },
-  { key: 'food', label: 'الطعام', icon: 'food', photo: 'aerial_sunset' },
-  { key: 'interactive', label: 'التجارب التفاعلية', icon: 'touch', photo: 'interactive' },
+  { key: 'planet', label: 'الاستدامة', icon: 'leaf', photo: 'sustainability' },
+  { key: 'humanity', label: 'الإنسانية', icon: 'family', photo: 'interactive' },
+  { key: 'collaboration', label: 'التعاون', icon: 'globe', photo: 'aerial_sunset' },
 ];
 
 export function PlanInterests() {
@@ -236,11 +270,13 @@ const FILTERS = [
   { key: 'all', label: 'الكل' },
   { key: 'intl', label: 'الأجنحة الدولية' },
   { key: 'technology', label: 'التقنية' },
-  { key: 'planet', label: 'الاستدامة' },
   { key: 'culture', label: 'الثقافة' },
+  { key: 'planet', label: 'الاستدامة' },
+  { key: 'humanity', label: 'الإنسانية' },
+  { key: 'collaboration', label: 'التعاون' },
 ];
 const TAG_FOR_INTEREST: Record<string, string[]> = {
-  technology: ['technology'], culture: ['culture'], sustainability: ['planet'], arts: ['culture'], food: ['culture'], interactive: ['technology'],
+  technology: ['technology'], culture: ['culture'], planet: ['planet'], humanity: ['humanity'], collaboration: ['collaboration'],
 };
 
 export function PlanMustVisit() {
@@ -269,7 +305,7 @@ export function PlanMustVisit() {
       scroll
       title="أماكن ما تبغى تفوتها"
       subtitle="اختر الأجنحة اللي تهمك، ونضمنها في خطتك."
-      footer={<Button label="التالي" style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanComfort')} />}
+      footer={<Button label="أنشئ خطتي" style={{ alignSelf: 'stretch' }} onPress={() => nav.push('Generating', undefined, 'dissolve')} />}
     >
       <View style={{ marginTop: s(20), gap: s(12) }}>
         <View style={{ marginHorizontal: s(16), height: s(50), borderRadius: s(25), backgroundColor: '#E8F0ED', paddingHorizontal: s(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: s(10) }}>

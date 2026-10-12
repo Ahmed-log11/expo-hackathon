@@ -46,7 +46,7 @@ function defaultPlan(): PlanInput {
   const end = new Date(start);
   end.setHours(22, 0, 0, 0);
   if (end.getTime() - start.getTime() < 2 * 3600_000) end.setTime(Math.min(start.getTime() + 4 * 3600_000, new Date(start).setHours(24, 0, 0, 0)));
-  return { start, end, tags: ['culture', 'technology', 'interactive'], mustVisit: ['ksa', 'jp'], comfort: ['shade', 'less_wait', 'family'] };
+  return { start, end, tags: ['culture', 'technology'], mustVisit: ['ksa', 'jp'], comfort: ['shade', 'less_wait', 'family'] };
 }
 export function dayLabel(d: Date) {
   const t = new Date(); t.setHours(0, 0, 0, 0);

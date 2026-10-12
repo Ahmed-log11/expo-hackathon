@@ -14,7 +14,7 @@ export const K = SCREEN_W / DESIGN_W;
 /** Screen height expressed in design units (874 on an iPhone 16 Pro). */
 export const VIEW_H = SCREEN_H / K;
 
-export const s = (n: number) => n * K;
+export const s = (n: number) => { 'worklet'; return n * K; };
 
 const SCALED = new Set([
   'width', 'height', 'minWidth', 'minHeight', 'maxWidth', 'maxHeight',
@@ -81,7 +81,7 @@ export function ar(weight: W, size: number, lineHeight?: number): TextStyle {
   return {
     fontFamily: F[`ar${weight}` as keyof typeof F],
     fontSize: s(size),
-    lineHeight: lineHeight ? s(lineHeight) : undefined,
+    lineHeight: s(Math.max(lineHeight ?? 0, size * 1.6)),
     writingDirection: 'rtl',
   };
 }

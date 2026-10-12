@@ -14,19 +14,50 @@ import { C, M, ar, s, sf } from '../theme';
 import { CROWD, CrowdLevel, Icon, Txt } from '../components/ui';
 import { MAP_IMAGE } from '../assets/images';
 import { Pt, lengthOf, toPath } from './route';
-
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 const APath = Animated.createAnimatedComponent(Path);
 
 /** The map plane: everything inside pans together (camera = vertical offset in design units). */
+/** The map plane: pinch to zoom, drag to pan, double-tap to reset. camY still moves it from code. */
 export function MapPlane({ camY, children, style }: { camY: SharedValue<number>; children?: React.ReactNode; style?: ViewStyle }) {
-  const a = useAnimatedStyle(() => ({ transform: [{ translateY: s(camY.value) }] }));
+  const scale = useSharedValue(1), savedScale = useSharedValue(1);
+  const tx = useSharedValue(0), ty = useSharedValue(0), sx = useSharedValue(0), sy = useSharedValue(0);
+
+  const clamp = (v: number, lo: number, hi: number) => { 'worklet'; return Math.min(hi, Math.max(lo, v)); };
+  const limX = (z: number) => { 'worklet'; return (s(402) * (z - 1)) / 2; };
+  const limY = (z: number) => { 'worklet'; return (s(874) * (z - 1)) / 2 + s(250); };   // +250: see what's under the bottom sheet
+
+  const pinch = Gesture.Pinch()
+    .onUpdate((e) => { scale.value = clamp(savedScale.value * e.scale, 1, 3); })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+      tx.value = withTiming(clamp(tx.value, -limX(scale.value), limX(scale.value)));
+      ty.value = withTiming(clamp(ty.value, -limY(scale.value), limY(scale.value)));
+    });
+  const pan = Gesture.Pan()
+    .minDistance(5)
+    .onStart(() => { sx.value = tx.value; sy.value = ty.value; })
+    .onUpdate((e) => {
+      tx.value = clamp(sx.value + e.translationX, -limX(scale.value), limX(scale.value));
+      ty.value = clamp(sy.value + e.translationY, -limY(scale.value), limY(scale.value));
+    });
+  const reset = Gesture.Tap().numberOfTaps(2).onEnd(() => {
+    scale.value = withTiming(1); savedScale.value = 1; tx.value = withTiming(0); ty.value = withTiming(0);
+  });
+  const gesture = Gesture.Simultaneous(pinch, pan, reset);
+
+  const a = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }, { translateY: ty.value + s(camY.value) }, { scale: scale.value }],
+  }));
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: C.mapBg, overflow: 'hidden' }, style]}>
-      <Animated.View style={[{ position: 'absolute', left: 0, top: 0, width: s(402), height: s(874) }, a]}>
-        <Image source={MAP_IMAGE} style={{ width: s(402), height: s(874) }} contentFit="fill" />
-        {children}
-      </Animated.View>
-    </View>
+    <GestureDetector gesture={gesture}>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: C.mapBg, overflow: 'hidden' }, style]}>
+        <Animated.View style={[{ position: 'absolute', left: 0, top: 0, width: s(402), height: s(874) }, a]}>
+          <Image source={MAP_IMAGE} style={{ width: s(402), height: s(874) }} contentFit="fill" />
+          {children}
+        </Animated.View>
+      </View>
+    </GestureDetector>
   );
 }
 

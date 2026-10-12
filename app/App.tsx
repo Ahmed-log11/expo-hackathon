@@ -13,7 +13,7 @@ import { Generating, PlanReady } from './src/screens/PlanResult';
 import Journey from './src/screens/Journey';
 import { Arrived, Summary, VisitComplete } from './src/screens/Visit';
 import { Explore, Favorites, Notifications, Pavilion, Profile } from './src/screens/More';
-
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 const SCREENS = {
   Onboarding, Permission: LocationPermission, Home,
   PlanTime, PlanInterests, PlanMustVisit, PlanComfort, Generating, PlanReady,
@@ -43,11 +43,13 @@ function Root() {
 export default function App() {
   const [loaded] = useFonts({ NotoSansArabic_400Regular, NotoSansArabic_500Medium, NotoSansArabic_600SemiBold, NotoSansArabic_700Bold });
   if (!loaded) return <View style={{ flex: 1, backgroundColor: '#073C3A' }} />;
-  return (
-    <SafeAreaProvider>
-      <StoreProvider>
-        <Root />
-      </StoreProvider>
-    </SafeAreaProvider>
+    return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StoreProvider>
+          <Root />
+        </StoreProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

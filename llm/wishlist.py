@@ -196,6 +196,9 @@ CHIPS = {
     "sustainability": {"en": "sustainability",          "ar": "الاستدامة",        "near": ["planet"]},
     "interactive":    {"en": "interactive experiences", "ar": "التجارب التفاعلية", "near": ["technology"]},
     "food":           {"en": "food",                    "ar": "الطعام",           "near": ["culture"]},
+        "planet":         {"en": "sustainability",          "ar": "الاستدامة",        "near": ["planet"]},
+    "humanity":       {"en": "humanity",                "ar": "الإنسانية",        "near": ["humanity"]},
+    "collaboration":  {"en": "collaboration",           "ar": "التعاون",          "near": ["collaboration"]},
 }
 
 
