@@ -647,6 +647,20 @@ def clear_live_state() -> None:
         meta.pop("open_offer", None)
 
 
+FORECAST_STEPS_MIN = (0, 30, 60, 90)
+
+
+def wait_forecast(pid: str, now: datetime, steps: tuple[int, ...] = FORECAST_STEPS_MIN) -> list[dict]:
+    """Expected wait at pid now and over the next 90 minutes, exactly as the planner sees it:
+    the ML prior, the latest observation (held, then faded) and the queue routed visitors will add."""
+    fc = Forecast(now)
+    out = []
+    for m in steps:
+        t = now + timedelta(minutes=m)
+        out.append({"minutes": m, "at": _iso(t), "wait_min": round(fc.wait(pid, t))})
+    return out
+
+
 def crowd_snapshot(now: datetime) -> list[dict]:
     out = []
     fc = Forecast(now)

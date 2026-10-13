@@ -23,6 +23,7 @@ The team's earlier proposal (separate `POST /plan`, `/checkin`, `/location`, `cr
 | GET | `/health` | Liveness, engine and LLM mode | — |
 | GET | `/pavilions` | Static site: `districts`, `pavilions` (queued places), `landmarks` | `GET_pavilions.json` |
 | GET | `/crowd` | Current wait per pavilion | `GET_crowd.json` |
+| GET | `/pavilions/{id}/forecast` | Expected wait now and in 30/60/90 min: `[{minutes, at, wait_min}]`, from the planner's own forecast (ML model + latest observation + routed visitors). `404` `unknown_pavilion` | — |
 | POST | `/visitors` | Interests → wishlist → route | `POST_visitors.request.json` / `.response.json` |
 | GET | `/visitors/{id}/route` | Current full route | `GET_visitor_route.json` |
 | GET | `/visitors/{id}/next` | Next-stop card | `GET_visitor_next.json` |
@@ -101,6 +102,7 @@ expire_offers(now); observe(pavilion_id, wait_min, at)
 get_route(visitor_id) -> Route | None
 mark_left(visitor_id, pavilion_id) -> None
 crowd_snapshot(now) -> list[PavilionCrowd]
+wait_forecast(pavilion_id, now) -> [{minutes, at, wait_min}]   # 0/30/60/90
 SITE                          # parsed sim/pavilions.json
 POINTS, PAVILIONS, LANDMARKS  # id -> place dicts: all / has_queue / no queue
 DEFAULT_START                 # "metro"

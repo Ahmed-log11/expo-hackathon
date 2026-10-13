@@ -82,24 +82,32 @@ export function Arrived() {
 
       <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(40), gap: s(4), alignItems: 'center' }}>
         <Button label="بدأت الزيارة" icon="eye" variant="accent" disabled={busy} style={{ alignSelf: 'stretch' }} onPress={start} />
-        <Button label="عرض تفاصيل الجناح" variant="tertiary" size="medium" />
+        <Button label="عرض تفاصيل الجناح" variant="tertiary" size="medium" onPress={() => nav.push('Pavilion', { pid }, 'moveIn')} />
       </View>
     </View>
   );
 }
 
 // ---------- Visit Complete ----------
+/** Under this many minutes inside, it was a tap-through rather than a visit: show the plan's estimate instead. */
+const MIN_REAL_VISIT = 5;
+
 export function VisitComplete() {
   const nav = useNav();
   const { params } = useRoute<{ pid: string }>();
-  const { route, done, crowd, event, savedByReroutes, mode } = useStore();
+  const { route, done, crowd, entered, event, savedByReroutes, mode } = useStore();
   const pid = params?.pid ?? 'kr';
   const stops = route?.stops ?? [];
   const cur = stops.find((x) => x.pavilion_id === pid);
   const next = stops.find((x) => x.pavilion_id !== pid);
   const total = done.length + stops.length;
-  const spent = mode === 'demo' && pid === 'kr' ? 31 : cur?.visit_min ?? 25;
-  const waited = mode === 'demo' && pid === 'kr' ? 9 : crowd[pid] ?? cur?.wait_min ?? 0;
+  // The visitor reads this when they come out, so the time inside keeps counting while the screen is open.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
+  const inn = entered[pid];
+  const inside = inn ? Math.floor((now - inn.at.getTime()) / 60_000) : 0;
+  const spent = mode === 'demo' && pid === 'kr' ? 31 : inside >= MIN_REAL_VISIT ? inside : cur?.visit_min ?? 25;
+  const waited = mode === 'demo' && pid === 'kr' ? 9 : inn?.wait ?? crowd[pid] ?? cur?.wait_min ?? 0;
   const nextWait = next ? crowd[next.pavilion_id] ?? next.wait_min : 0;
   const nlvl = levelFor(nextWait);
   const [busy, setBusy] = useState(false);
@@ -212,7 +220,7 @@ export function Summary() {
         <Animated.View entering={FadeInDown.delay(80).duration(M.sheet)} style={{ flexDirection: 'row', gap: s(10), marginTop: s(10) }}>
           <View style={{ flex: 115, minHeight: s(84), borderRadius: s(20), backgroundColor: C.aqua, paddingVertical: s(14), paddingRight: s(10), paddingLeft: s(2), gap: s(2), alignItems: 'flex-end' }}>
             <Txt style={ar(700, 22, 31)} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t ? hm(t.saved_min) : '—'}</Txt>
-            <Txt style={[ar(400, 13, 21), { color: C.deep }]}>انتظار وفّرته</Txt>
+            <Txt style={[ar(400, 13, 21), { color: C.deep }]}>وفّرنا لك تقريبًا</Txt>
           </View>
           {[{ v: t ? `${t.distance_km} كم` : '—', l: 'مشي' }, { v: t ? String(t.pavilions) : '—', l: 'أجنحة' }].map((x) => (
             <View key={x.l} style={{ flex: 117, minHeight: s(84), borderRadius: s(20), backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: s(1), borderColor: 'rgba(255,255,255,0.14)', padding: s(14), gap: s(2), alignItems: 'flex-end' }}>

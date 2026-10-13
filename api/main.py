@@ -200,6 +200,15 @@ def crowd():
     return {"updated_at": msg["updated_at"], "pavilions": msg["pavilions"]}
 
 
+@app.get("/pavilions/{pid}/forecast")
+def pavilion_forecast(pid: str):
+    """Expected wait now and in 30/60/90 minutes: [{minutes, at, wait_min}].
+    Same forecast the planner uses (ML model, latest observation fading out, routed visitors)."""
+    if pid not in engine.PAVILIONS:
+        raise err(404, "unknown_pavilion", f"Unknown pavilion {pid}")
+    return engine.wait_forecast(pid, now())
+
+
 def build_wishlist(body: NewVisitor) -> tuple[list[dict], str]:
     """Picked pavilions first, then what the free text asks for, then interest chips.
     Each item: {pavilion_id, reason, source}. Returns (items, source of the text part)."""

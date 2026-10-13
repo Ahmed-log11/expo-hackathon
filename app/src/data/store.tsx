@@ -4,10 +4,15 @@
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { backend, CrowdItem, LiveMessage, Offer, Route, Summary, WishItem } from './api';
+import { nameOf, shortName } from './places';
 
 export type PlanInput = { start: Date; end: Date; tags: string[]; mustVisit: string[]; comfort: string[] };
 export type Done = { id: string; wait: number; visit: number; at: Date };
 export type Alert = { pavilion_id: string; wait_min: number; planned_wait_min: number };
+/** When the visitor got into a pavilion, and the wait they saw when they joined its line. */
+export type Entered = { at: Date; wait: number };
+/** One row of the Notifications screen: every live alert, offer and route change of the day. */
+export type Note = { id: string; at: Date; kind: 'alert' | 'offer' | 'reroute'; title: string; body: string; pid?: string };
 
 type Store = {
   mode: 'live' | 'demo';
@@ -17,10 +22,14 @@ type Store = {
   route?: Route;
   wishlist?: WishItem[];
   done: Done[];
+  entered: Record<string, Entered>;
   crowd: Record<string, number>;
   alert?: Alert;
   offer?: Offer;
   savedByReroutes: number;
+  notes: Note[];
+  favorites: string[];
+  toggleFavorite: (pid: string) => void;
   summary?: Summary;
   error?: string;
   createPlan: () => Promise<void>;
@@ -63,20 +72,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [route, setRoute] = useState<Route>();
   const [wishlist, setWishlist] = useState<WishItem[]>();
   const [done, setDone] = useState<Done[]>([]);
+  const [entered, setEntered] = useState<Record<string, Entered>>({});
   const [crowd, setCrowd] = useState<Record<string, number>>({});
   const [alert, setAlert] = useState<Alert>();
   const [offer, setOffer] = useState<Offer>();
   const [savedByReroutes, setSaved] = useState(0);
+  const [notes, setNotes] = useState<Note[]>([]);
+  // Saved places (hearts). The offline demo opens with the design's three; a real visitor starts empty.
+  const [favorites, setFavorites] = useState<string[]>(() => (backend.mode === 'demo' ? ['kr', 'th_planet', 'it'] : []));
   const [summary, setSummary] = useState<Summary>();
   const [error, setError] = useState<string>();
   const unsub = useRef<(() => void) | undefined>(undefined);
   const vidRef = useRef<string | undefined>(undefined);
+  const crowdRef = useRef(crowd);
+  crowdRef.current = crowd;
+  const noteSeq = useRef(0);
+
+  const addNote = useCallback((n: Omit<Note, 'id' | 'at'>, id?: string) => {
+    setNotes((all) => (id && all.some((x) => x.id === id) ? all : [...all, { ...n, id: id ?? `n${++noteSeq.current}`, at: new Date() }]));
+  }, []);
 
   const onLive = useCallback((m: LiveMessage) => {
     if (m.type === 'crowd_update') setCrowd(Object.fromEntries(m.pavilions.map((p: CrowdItem) => [p.pavilion_id, p.wait_min])));
-    else if (m.type === 'crowd_alert') setAlert({ pavilion_id: m.pavilion_id, wait_min: m.wait_min, planned_wait_min: m.planned_wait_min });
-    else if (m.type === 'reroute_offer') setOffer(m);
-    else if (m.type === 'reroute') setRoute(m.route);
+    else if (m.type === 'crowd_alert') {
+      setAlert({ pavilion_id: m.pavilion_id, wait_min: m.wait_min, planned_wait_min: m.planned_wait_min });
+      addNote({ kind: 'alert', pid: m.pavilion_id, title: `الازدحام يرتفع في ${nameOf(m.pavilion_id)}`, body: `الانتظار الآن ${m.wait_min} د، وكان المتوقع ${m.planned_wait_min} د.` });
+    } else if (m.type === 'reroute_offer') {
+      setOffer(m);
+      const alt = m.new[0]?.pavilion_id;
+      addNote({
+        kind: 'offer', pid: alt, title: 'وجدنا لك مسارًا أفضل',
+        body: m.reason || (alt ? `زيارة ${shortName(alt)} أولًا قد توفر لك ${m.saves_min} دقيقة.` : `المسار الجديد قد يوفر لك ${m.saves_min} دقيقة.`),
+      }, m.offer_id);
+    } else if (m.type === 'reroute') {
+      setRoute(m.route);
+      addNote({ kind: 'reroute', title: 'عدّلنا مسارك', body: m.reason });
+    }
+  }, [addNote]);
+
+  const toggleFavorite = useCallback((pid: string) => {
+    setFavorites((f) => (f.includes(pid) ? f.filter((x) => x !== pid) : [...f, pid]));
   }, []);
 
   const refreshCrowd = useCallback(() => {
@@ -111,7 +146,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setVisitorId(res.visitor_id);
       setRoute(res.route);
       setWishlist(res.wishlist);
-      setDone([]); setOffer(undefined); setAlert(undefined); setSaved(0); setSummary(undefined);
+      setDone([]); setEntered({}); setOffer(undefined); setAlert(undefined); setSaved(0); setNotes([]); setSummary(undefined);
       unsub.current = backend.live(res.visitor_id, onLive);
     } catch (e: any) {
       setError(e?.message ?? 'تعذّر إنشاء الخطة');
@@ -125,11 +160,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const r = await backend.accept(vidRef.current, offer.offer_id);
       setRoute(r);
       setSaved((v) => v + offer.saves_min);
+      const order = offer.new.slice(0, 2).map((x) => shortName(x.pavilion_id)).join(' ثم ');
+      addNote({ kind: 'reroute', title: 'عدّلنا مسارك لتقليل الانتظار', body: `وفّرت قرابة ${offer.saves_min} دقيقة${order ? ` · ${order}` : ''}.` });
     } finally {
       setOffer(undefined);
       setAlert(undefined);
     }
-  }, [offer]);
+  }, [offer, addNote]);
 
   const decline = useCallback(async () => {
     if (!vidRef.current || !offer) return;
@@ -141,6 +178,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const vid = vidRef.current;
     if (!vid) return;
     await backend.event(vid, type, pid).catch(() => {});
+    if (type === 'entered') {
+      const st = route?.stops.find((s) => s.pavilion_id === pid);
+      setEntered((e) => (e[pid] ? e : { ...e, [pid]: { at: new Date(), wait: crowdRef.current[pid] ?? st?.wait_min ?? 0 } }));
+    }
     if (type === 'left') {
       const st = route?.stops.find((s) => s.pavilion_id === pid);
       // A double tap can send "left" twice; record each pavilion once.
@@ -166,14 +207,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const resetDay = useCallback(() => {
     unsub.current?.();
     vidRef.current = undefined;
-    setVisitorId(undefined); setRoute(undefined); setDone([]); setOffer(undefined); setAlert(undefined); setSummary(undefined); setSaved(0);
+    setVisitorId(undefined); setRoute(undefined); setDone([]); setEntered({}); setOffer(undefined); setAlert(undefined); setSummary(undefined); setSaved(0); setNotes([]);
   }, []);
 
   const value = useMemo<Store>(() => ({
     mode: backend.mode, plan, setPlan: (p) => setPlanState((o) => ({ ...o, ...p })),
-    visitorId, route, wishlist, done, crowd, alert, offer, savedByReroutes, summary, error,
+    visitorId, route, wishlist, done, entered, crowd, alert, offer, savedByReroutes, notes, favorites, toggleFavorite, summary, error,
     createPlan, accept, decline, event, triggerCrowd, refreshCrowd, loadSummary, clearAlert: () => setAlert(undefined), resetDay,
-  }), [plan, visitorId, route, wishlist, done, crowd, alert, offer, savedByReroutes, summary, error, createPlan, accept, decline, event, triggerCrowd, refreshCrowd, loadSummary, resetDay]);
+  }), [plan, visitorId, route, wishlist, done, entered, crowd, alert, offer, savedByReroutes, notes, favorites, toggleFavorite, summary, error, createPlan, accept, decline, event, triggerCrowd, refreshCrowd, loadSummary, resetDay]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

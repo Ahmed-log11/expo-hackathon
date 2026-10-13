@@ -1,7 +1,7 @@
 /**
  * 04 — Location Permission and 05 — Home (Default / Crowd High), with the glass tab bar.
  */
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
@@ -71,6 +71,28 @@ export function LocationPermission() {
 }
 
 // ---------- Home ----------
+/** Riyadh's temperature now, from Open-Meteo (free, no key, no user data sent). Hidden when the phone is offline. */
+const WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=24.71&longitude=46.68&current=temperature_2m';
+let lastTemp: { c: number; at: number } | undefined;
+function useRiyadhTemp() {
+  const [temp, setTemp] = useState(lastTemp?.c);
+  useEffect(() => {
+    if (lastTemp && Date.now() - lastTemp.at < 15 * 60_000) return;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    fetch(WEATHER_URL, { signal: ctl.signal })
+      .then((r) => r.json())
+      .then((j) => {
+        const c = j?.current?.temperature_2m;
+        if (typeof c === 'number') { lastTemp = { c: Math.round(c), at: Date.now() }; setTemp(lastTemp.c); }
+      })
+      .catch(() => {})
+      .finally(() => clearTimeout(timer));
+    return () => { clearTimeout(timer); ctl.abort(); };
+  }, []);
+  return temp;
+}
+
 const LABELLED = 5;   // blobs and labels only on the busiest few, so the map stays readable and light
 // A label whose box would overlap a placed one is skipped, so labels never stack (labels are wide pills, ~40 tall).
 const LABEL_GAP = { x: 110, y: 44 };
@@ -87,6 +109,7 @@ export function Home() {
   const busy = overall === 'busy' || overall === 'critical';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'صباح الخير' : 'مساء الخير';
+  const temp = useRiyadhTemp();
 
   const { heat, labels } = useMemo(() => {
     const busiest = PAVILION_IDS.filter((id) => crowd[id] != null && levelFor(crowd[id]) !== 'low')
@@ -149,7 +172,7 @@ export function Home() {
         style={{ position: 'absolute', left: 0, right: 0, bottom: s(-34), paddingHorizontal: s(20), paddingTop: s(8), paddingBottom: s(112 + 34), gap: s(12), borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
         <View style={{ alignSelf: 'flex-end', marginRight: s(4), width: s(36), height: s(5), borderRadius: s(3), backgroundColor: 'rgba(96,120,116,0.45)' }} />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: s(6) }}>
-          <Txt style={[ar(500, 13, 19), { color: C.slate }]}>31°</Txt>
+          {temp != null && <Txt style={[ar(500, 13, 19), { color: C.slate }]}>{`${temp}°`}</Txt>}
           <Txt style={[ar(500, 13, 19), { color: C.slate }]}>{`${greeting} · أنت قرب الساحة المركزية`}</Txt>
           <Icon name="pin" size={16} color={C.aquaText} />
         </View>

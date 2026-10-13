@@ -1,5 +1,6 @@
 /**
- * 05 — Planning wizard: Time (1/4) → Interests (2/4) → Must Visit (3/4) → Comfort (4/4).
+ * 05 — Planning wizard, 3 steps: Time (1/3) → Interests (2/3) → Must Visit (3/3) → Generating.
+ * PlanComfort (the old 4th step) is kept but not in the flow; comfort preferences are set on Profile.
  * Every value (positions, sizes, colours, type) comes from the Figma frames on the Prototype page.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -62,7 +63,7 @@ function WizardFrame({ step, title, subtitle, children, footer, scroll }: {
   );
 }
 
-// ---------- 1/4 Time ----------
+// ---------- 1/3 Time ----------
 
 
 function atHour(base: Date, h: number) {
@@ -212,7 +213,7 @@ function DayTrack({ hours }: { hours: number }) {
   );
 }
 
-// ---------- 2/4 Interests ----------
+// ---------- 2/3 Interests ----------
 const INTERESTS: { key: string; label: string; icon: IconName; photo: keyof typeof PHOTOS; iconColor?: string }[] = [
   { key: 'technology', label: 'التقنية', icon: 'tech', photo: 'hero', iconColor: C.ink },
   { key: 'culture', label: 'الثقافة', icon: 'culture', photo: 'culture' },
@@ -274,7 +275,7 @@ function InterestCard({ item, selected, onPress }: { item: typeof INTERESTS[numb
   );
 }
 
-// ---------- 3/4 Must Visit ----------
+// ---------- 3/3 Must Visit ----------
 const FILTERS = [
   { key: 'mine', label: 'حسب اهتماماتك' },
   { key: 'all', label: 'الكل' },
@@ -391,7 +392,7 @@ function PavilionPick({ id, selected, wait, onPress }: { id: string; selected: b
   );
 }
 
-// ---------- 4/4 Comfort ----------
+// ---------- Comfort (not in the 3-step flow) ----------
 // Listed left → right per row, as in Figma.
 const COMFORT: { key: string; title: string; desc: string; icon: IconName }[] = [
   { key: 'shade', title: 'مسارات مظللة', desc: 'نفضّل الممرات المظللة وقت الحر', icon: 'shade' },

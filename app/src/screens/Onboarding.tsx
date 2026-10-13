@@ -161,16 +161,20 @@ export default function Onboarding() {
         <Band index={3} box={{ x: 306, y: 365 - 4, w: 56, h: 39 + 8 }} progress={bandD} fromLeft={false} />
       </Animated.View>
 
-      {/* Welcome content */}
+      {/* Welcome content: text and buttons in one column anchored to the bottom (Figma: buttons end at 828).
+          Arabic lines are taller than the Figma line boxes (natural ~2.1 x size), so the text grows upward
+          instead of sliding under the buttons; the title's gap is tightened to keep the design's spacing. */}
       {phase === 'welcome' && (
         <Animated.View style={[StyleSheet.absoluteFill, content]}>
-          <View style={{ position: 'absolute', left: s(16), right: s(16), top: s(600), gap: s(12) }}>
-            <Txt style={[ar(700, 34, 46), { color: C.white }]}>خل يومك ينساب</Txt>
-            <Txt style={[ar(400, 17, 29), { color: 'rgba(255,255,255,0.88)' }]}>خطط زيارتك حسب اهتماماتك والازدحام المتوقع داخل إكسبو.</Txt>
-          </View>
-          <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(874 - 828), gap: s(6), alignItems: 'center' }}>
-            <Button label="ابدأ" variant="accent" style={{ alignSelf: 'stretch' }} onPress={() => nav.push('Permission', undefined, 'push')} />
-            <Button label="تصفّح بدون خطة" variant="tertiary" textColor={C.white} size="medium" onPress={() => nav.push('Explore', undefined, 'dissolve')} />
+          <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(874 - 828), gap: s(28) }}>
+            <View style={{ gap: s(2) }}>
+              <Txt style={[ar(700, 34, 46), { color: C.white }]}>خل يومك ينساب</Txt>
+              <Txt style={[ar(400, 17, 29), { color: 'rgba(255,255,255,0.88)' }]}>خطط زيارتك حسب اهتماماتك والازدحام المتوقع داخل إكسبو.</Txt>
+            </View>
+            <View style={{ gap: s(6), alignItems: 'center' }}>
+              <Button label="ابدأ" variant="accent" style={{ alignSelf: 'stretch' }} onPress={() => nav.push('Permission', undefined, 'push')} />
+              <Button label="تصفّح بدون خطة" variant="tertiary" textColor={C.white} size="medium" onPress={() => nav.push('Explore', undefined, 'dissolve')} />
+            </View>
           </View>
         </Animated.View>
       )}

@@ -7,7 +7,7 @@ B's engine. The API uses only what is exported here:
 from engine.routing import (OfferError, accept_offer, clear_live_state, crowd_snapshot, decline_offer,  # noqa: F401
                             expected_wait, expire_offers, find_offer, get_route, headroom,
                             mark_left, maybe_reroute, next_stop, opening_hours, plan, record_event, refresh, replan,
-                            reset, summary)
+                            reset, summary, wait_forecast)
 from engine.routing import CROWD as _CROWD_AT_IMPORT  # noqa: F401  (use observe() below instead)
 
 

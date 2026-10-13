@@ -102,6 +102,13 @@ export function mockBackend(): Backend {
     },
     async decline(vid) { await delay(null, 120); },
     async crowd() { return delay(crowdItems(), 100); },
+    async forecast(pid) {
+      // Offline: shaped like the design's evening rise and fall (the live API returns the model's forecast).
+      const w = crowd[pid] ?? 12;
+      const now = new Date();
+      return delay([w, Math.round(w * 2.8), Math.round(w * 1.6), Math.max(5, Math.round(w * 0.9))]
+        .map((wait_min, i) => ({ minutes: i * 30, at: iso(addMin(iso(now), i * 30)), wait_min })), 100);
+    },
     live(vid, onMessage) {
       const v = visitors[vid];
       v.listeners.add(onMessage);

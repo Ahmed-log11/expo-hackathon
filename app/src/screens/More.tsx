@@ -1,7 +1,7 @@
 /**
  * 06 — Pavilion (Default + Wait Forecast sheet), 07 — Explore / Favorites / Notifications, 08 — Profile.
- * Note: the API does not expose per-pavilion forecasts yet (see the design handoff gaps); the forecast rows
- * below are shaped from the current wait so the screen can be shown. Swap in the endpoint when it exists.
+ * The wait forecast comes from GET /pavilions/{id}/forecast: the planner's own model (ML prior, latest
+ * observation fading out, routed visitors). If that call fails, the rows are shaped from the current wait.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -15,6 +15,8 @@ import { Button, CROWD, Chip, CrowdPill, Glass, GlassButton, Icon, Pressy, Round
 import { TabBar, useTabs } from '../components/tabs';
 import { useNav, useRoute } from '../nav/Navigator';
 import { AR_DAYS, AR_MONTHS, fmtTime, useStore } from '../data/store';
+import type { Note } from '../data/store';
+import { backend, ForecastPoint } from '../data/api';
 import { PAVILION_IDS, PLACES, categoryOf, nameOf, photoOf, walkMinutes } from '../data/places';
 import { PHOTOS } from '../assets/images';
 import type { IconName } from '../assets/svg';
@@ -23,8 +25,8 @@ const APath = Animated.createAnimatedComponent(Path);
 const raised = `0px ${s(2)}px ${s(8)}px rgba(8,38,36,0.06), 0px ${s(8)}px ${s(24)}px rgba(8,38,36,0.06)`;
 
 // ---------- forecast (display) ----------
+/** Fallback only, when the forecast endpoint can't be reached: now, +30, +60, +90 shaped like the design. */
 function forecastFor(now: number) {
-  // Now, +30, +60, +90 minutes. Shaped like the design's evening rise and fall.
   return [now, Math.round(now * 2.8), Math.round(now * 1.6), Math.max(5, Math.round(now * 0.9))];
 }
 const LEVEL_WORD = (w: number) => CROWD[levelFor(w)].word;
@@ -61,11 +63,17 @@ function Sparkline({ values }: { values: number[] }) {
 
 function WaitInsight({ wait, values, best }: { wait: number; values: number[]; best: string }) {
   const lvl = levelFor(wait);
-  const rising = values[1] > wait + 5;
+  // Trend over the next 30 minutes, or over the hour when the first half hour is flat.
+  const d30 = values[1] - wait, d60 = values[2] - wait;
+  const soon = Math.abs(d30) > 5;
+  const rising = soon ? d30 > 0 : d60 > 5;
+  const falling = soon ? d30 < 0 : d60 < -5;
+  const trend = rising ? (soon ? 'يرتفع خلال 30 دقيقة' : 'يرتفع خلال ساعة') : falling ? (soon ? 'ينخفض خلال 30 دقيقة' : 'ينخفض خلال ساعة') : 'مستقر خلال الساعة القادمة';
+  const trendColor = rising ? C.busyText : C.lowText;
   return (
     <View style={{ backgroundColor: C.white, borderRadius: s(24), padding: s(18), gap: s(14), boxShadow: raised }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <Sparkline values={values} />
+        <Sparkline key={values.join(',')} values={values} />
         <View style={{ alignItems: 'flex-end' }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: s(4) }}>
             <Txt style={[ar(600, 17, 27), { color: C.slate }]}>د</Txt>
@@ -77,8 +85,8 @@ function WaitInsight({ wait, values, best }: { wait: number; values: number[]; b
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <CrowdPill level={lvl} size="medium" label={`${CROWD[lvl].word} الآن`} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(6) }}>
-          <Txt style={[ar(600, 15, 22), { color: rising ? C.busyText : C.lowText }]}>{rising ? 'يرتفع خلال 30 دقيقة' : 'مستقر خلال الساعة القادمة'}</Txt>
-          <Icon name="straight" size={16} color={rising ? C.busyText : C.lowText} />
+          <Txt style={[ar(600, 15, 22), { color: trendColor }]}>{trend}</Txt>
+          <Icon name="straight" size={16} color={trendColor} style={falling ? { transform: [{ rotate: '180deg' }] } : undefined} />
         </View>
       </View>
       <View style={{ backgroundColor: C.mint, borderRadius: s(16), paddingHorizontal: s(14), paddingVertical: s(12), flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: s(8) }}>
@@ -93,23 +101,39 @@ function WaitInsight({ wait, values, best }: { wait: number; values: number[]; b
 export function Pavilion() {
   const nav = useNav();
   const { params } = useRoute<{ pid: string }>();
-  const { crowd, route, plan, setPlan } = useStore();
+  const { crowd, route, plan, setPlan, favorites, toggleFavorite } = useStore();
   const pid = params?.pid ?? 'jp';
   const p = PLACES[pid];
-  const wait = crowd[pid] ?? 12;
-  const values = forecastFor(wait);
+  const live = crowd[pid];
+  // The planner's forecast for this pavilion, fetched again whenever its live wait changes.
+  // undefined = loading (flat line), 'error' = endpoint unreachable (shaped fallback).
+  const [fc, setFc] = useState<ForecastPoint[] | 'error'>();
+  useEffect(() => {
+    let on = true;
+    backend.forecast(pid)
+      .then((f) => { if (on && f.length >= 4) setFc(f.slice(0, 4)); })
+      .catch(() => { if (on) setFc((old) => (Array.isArray(old) ? old : 'error')); });
+    return () => { on = false; };
+  }, [pid, live]);
+  const model = Array.isArray(fc) ? fc : undefined;
+  const wait = model ? model[0].wait_min : live ?? 12;
+  const values = model ? model.map((x) => x.wait_min) : fc === 'error' ? forecastFor(wait) : [wait, wait, wait, wait];
   const [sheet, setSheet] = useState(false);
   const [row, setRow] = useState(0);
   const inPlan = !!route?.stops.some((x) => x.pavilion_id === pid) || plan.mustVisit.includes(pid);
+  const fav = favorites.includes(pid);
   const tags = (p?.tags ?? []).map((t) => ({ technology: 'التقنية', culture: 'الثقافة', planet: 'الاستدامة', humanity: 'الإنسانية', collaboration: 'التعاون' } as Record<string, string>)[t] ?? t);
-  // Rows: now, then the next half-hour slots (5:30, 6:00, 6:30 in the design).
+  // Rows: the forecast's own times (now, +30, +60, +90); the fallback uses the next half-hour slots like the design.
   const now = new Date();
   const slot = new Date(now);
   slot.setMinutes(now.getMinutes() < 30 ? 30 : 60, 0, 0);
-  const times = [now, slot, new Date(slot.getTime() + 30 * 60_000), new Date(slot.getTime() + 60 * 60_000)];
+  const times = model ? model.map((x) => new Date(x.at)) : [now, slot, new Date(slot.getTime() + 30 * 60_000), new Date(slot.getTime() + 60 * 60_000)];
   const lowNow = levelFor(wait) === 'low';
   const bestIdx = lowNow ? 0 : values.indexOf(Math.min(...values));
   const best = bestIdx === 0 ? `الآن – ${fmtTime(new Date(now.getTime() + 10 * 60_000))}` : `بعد ${fmtTime(times[bestIdx])}`;
+  // The quietest later slot, for the note under the rows.
+  const later = values.slice(1).reduce((b, v, i) => (v < values[b] ? i + 1 : b), 1);
+  const eases = values[later] < values[0];
 
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
@@ -157,7 +181,7 @@ export function Pavilion() {
       </ScrollView>
 
       <GlassButton icon="chevron-right" level="clear" style={{ position: 'absolute', right: s(16), top: s(56) }} onPress={() => nav.back('moveOut')} />
-      <GlassButton icon="heart" level="clear" style={{ position: 'absolute', left: s(16), top: s(56) }} />
+      <GlassButton icon="heart" level="clear" selected={fav} onPress={() => toggleFavorite(pid)} style={{ position: 'absolute', left: s(16), top: s(56) }} />
       <LinearGradient colors={['rgba(243,248,246,0)', C.canvas]} locations={[0, 0.3]} pointerEvents="box-none"
         style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: s(16), paddingTop: s(24), paddingBottom: s(46), flexDirection: 'row', gap: s(10) }}>
         <Button label={inPlan ? 'في خطتك' : 'أضف لخطتي'} icon={inPlan ? 'check' : 'plus'} variant="secondary" padX={12} style={{ flex: 140 }}
@@ -182,7 +206,7 @@ export function Pavilion() {
               </Pressy>
               <View style={{ alignItems: 'flex-end', gap: s(2) }}>
                 <Txt style={ar(700, 22, 31)}>توقعات الانتظار</Txt>
-                <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{`${nameOf(pid)} · اليوم`}</Txt>
+                <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{`${nameOf(pid)} · اليوم${model && backend.mode === 'live' ? ' · من نموذج تعلّم آلي' : ''}`}</Txt>
               </View>
             </View>
             <WaitInsight wait={values[row]} values={values.slice(row).concat(values.slice(0, row))} best={best} />
@@ -205,7 +229,9 @@ export function Pavilion() {
                 );
               })}
             </View>
-            <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{`أو بعد ${fmtTime(new Date(times[2].getTime() + 15 * 60_000))} عندما يخف الازدحام · يتحدّث التوقع كل دقيقة`}</Txt>
+            <Txt style={[ar(400, 13, 21), { color: C.slate }]}>
+              {eases ? `أو بعد ${fmtTime(times[later])} عندما يخف الازدحام` : 'لا نتوقع أن يخف الازدحام خلال الساعة والنصف القادمة'}
+            </Txt>
           </Animated.View>
         </>
       )}
@@ -291,13 +317,14 @@ function SectionHead({ title, onAll }: { title: string; onAll?: () => void }) {
 }
 
 function PavilionTile({ id, wait = 12, onPress }: { id: string; wait?: number; onPress: () => void }) {
-  const [fav, setFav] = useState(false);
+  const { favorites, toggleFavorite } = useStore();
+  const fav = favorites.includes(id);
   const lvl = levelFor(wait);
   return (
     <Pressy onPress={onPress} style={{ width: s(232) }} scaleTo={0.98}>
       <View style={{ height: s(156), borderRadius: s(22), overflow: 'hidden' }}>
         <Image source={photoOf(id)} style={StyleSheet.absoluteFill} contentFit="cover" />
-        <Pressy onPress={() => setFav((f) => !f)} style={{ position: 'absolute', left: s(10), top: s(10) }} scaleTo={0.9}>
+        <Pressy onPress={() => toggleFavorite(id)} style={{ position: 'absolute', left: s(10), top: s(10) }} scaleTo={0.9}>
           <Glass level="clear" radius={22} fill={fav ? 'rgba(7,60,58,0.88)' : 'rgba(255,255,255,0.24)'} border="rgba(255,255,255,0.45)" style={{ width: s(44), height: s(44), alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="heart" size={22} color={fav ? C.aqua : C.white} />
           </Glass>
@@ -318,15 +345,18 @@ function PavilionTile({ id, wait = 12, onPress }: { id: string; wait?: number; o
 }
 
 // ---------- Favorites ----------
+function placesAr(n: number) {
+  return n === 1 ? 'مكان واحد' : n === 2 ? 'مكانان' : n <= 10 ? `${n} أماكن` : `${n} مكانًا`;
+}
+
 export function Favorites() {
   const nav = useNav();
   const onTab = useTabs('explore');
-  const { crowd, route, plan, setPlan } = useStore();
-  const [saved, setSaved] = useState<string[]>(['kr', 'th_planet', 'it']);
-  const [expanded, setExpanded] = useState('it');
+  const { crowd, route, plan, setPlan, favorites: saved, toggleFavorite } = useStore();
+  const [expanded, setExpanded] = useState(() => saved[saved.length - 1] ?? '');
   const [added, setAdded] = useState<string[]>([]);
   const inPlan = (id: string) => !!route?.stops.some((x) => x.pavilion_id === id) || plan.mustVisit.includes(id) || added.includes(id);
-  const busyOne = saved.find((id) => levelFor(crowd[id] ?? 12) === 'busy' || levelFor(crowd[id] ?? 12) === 'critical') ?? expanded;
+  const busyOne = saved.find((id) => levelFor(crowd[id] ?? 12) === 'busy' || levelFor(crowd[id] ?? 12) === 'critical') ?? (saved.includes(expanded) ? expanded : '');
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <StatusBar style="dark" />
@@ -335,9 +365,17 @@ export function Favorites() {
           <RoundButton icon="chevron-right" onPress={() => nav.back()} />
         </View>
         <Txt style={ar(700, 34, 46)}>المحفوظة</Txt>
-        <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{`${saved.length} أماكن · نعرض لك حالة الازدحام مباشرة`}</Txt>
+        <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{saved.length ? `${placesAr(saved.length)} · نعرض لك حالة الازدحام مباشرة` : 'نعرض لك حالة الازدحام مباشرة'}</Txt>
       </View>
-      <View style={{ position: 'absolute', left: s(16), top: s(256), width: s(328), gap: s(12) }}>
+      <ScrollView style={{ position: 'absolute', left: 0, right: 0, top: s(256), bottom: 0 }} contentContainerStyle={{ paddingLeft: s(16), paddingBottom: s(130) }} showsVerticalScrollIndicator={false}>
+      <View style={{ width: s(328), gap: s(12) }}>
+        {!saved.length && (
+          <View style={{ width: s(370), backgroundColor: C.white, borderRadius: s(22), padding: s(18), gap: s(6), alignItems: 'flex-end', boxShadow: raised }}>
+            <Icon name="heart" size={24} color={C.aquaText} />
+            <Txt style={ar(600, 17, 27)}>لا توجد أماكن محفوظة بعد</Txt>
+            <Txt style={[ar(400, 15, 24), { color: C.slate }]}>اضغط على القلب في أي جناح لحفظه هنا ومتابعة الازدحام فيه.</Txt>
+          </View>
+        )}
         {saved.map((id) => {
           const w = crowd[id] ?? 12, lvl = levelFor(w);
           const on = inPlan(id);
@@ -359,7 +397,7 @@ export function Favorites() {
               </Pressy>
               {open && (
                 <Animated.View entering={FadeIn.duration(M.standard)} style={{ flexDirection: 'row', gap: s(8) }}>
-                  <Button label="إزالة" icon="trash" variant="tertiary" size="medium" style={{ flex: 1 }} onPress={() => setSaved((x) => x.filter((y) => y !== id))} />
+                  <Button label="إزالة" icon="trash" variant="tertiary" size="medium" style={{ flex: 1 }} onPress={() => toggleFavorite(id)} />
                   <Button label={on ? 'في خطتك' : 'أضف إلى خطتي'} icon={on ? 'check' : 'plus'} variant="secondary" size="medium" padX={8} style={{ flex: 1 }}
                     onPress={() => { if (!on) { setAdded((a) => [...a, id]); setPlan({ mustVisit: [...plan.mustVisit, id] }); } }} />
                 </Animated.View>
@@ -367,13 +405,14 @@ export function Favorites() {
             </Animated.View>
           );
         })}
-        {busyOne && (
+        {!!busyOne && (
           <Animated.View layout={LinearTransition.duration(M.sheet)} style={{ width: s(370), backgroundColor: C.mint, borderRadius: s(18), padding: s(14), flexDirection: 'row', gap: s(8) }}>
             <Icon name="clock" size={20} color={C.aquaText} />
             <Txt style={[ar(400, 15, 24), { color: C.deep, flex: 1 }]}>{`${nameOf(busyOne)} ${levelFor(crowd[busyOne] ?? 12) === 'low' ? 'هادئ الآن. وقت مناسب لإضافته.' : 'مزدحم الآن. نقترح إضافته بعد 8 م عندما يقل الانتظار.'}`}</Txt>
           </Animated.View>
         )}
       </View>
+      </ScrollView>
       <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(30) }}>
         <TabBar selected="explore" onSelect={onTab} />
       </View>
@@ -382,14 +421,20 @@ export function Favorites() {
 }
 
 // ---------- Notifications ----------
+const NOTE_STYLE: Record<Note['kind'], { icon: IconName; bg: string; fg: string }> = {
+  alert: { icon: 'crowd', bg: C.busyBg, fg: C.busyText },
+  offer: { icon: 'clock', bg: C.mint, fg: C.aquaText },
+  reroute: { icon: 'reroute', bg: C.deep, fg: C.aqua },
+};
+
 export function Notifications() {
   const nav = useNav();
-  const { savedByReroutes, crowd } = useStore();
-  const items: { time: string; title: string; body: string; icon: IconName; bg: string; fg: string; to?: () => void }[] = [
-    { time: '7:45 م', title: 'فرصة مناسبة لزيارة الفنون خلال 20 دقيقة', body: 'الانتظار المتوقع منخفض حتى 8:20 م.', icon: 'clock', bg: C.mint, fg: C.aquaText, to: () => nav.push('Pavilion', { pid: 'it' }, 'moveIn') },
-    { time: '5:47 م', title: 'جناح اليابان أصبح أقل ازدحامًا', body: `الانتظار الآن ${crowd.jp ?? 12} د. وقت مناسب لمحطتك التالية.`, icon: 'crowd', bg: C.lowBg, fg: C.lowText, to: () => nav.push('Pavilion', { pid: 'jp' }, 'moveIn') },
-    { time: '5:01 م', title: 'عدّلنا مسارك لتقليل الانتظار', body: `وفّرت ${savedByReroutes || 26} دقيقة · كوريا ثم اليابان.`, icon: 'reroute', bg: C.deep, fg: C.aqua },
-  ];
+  const { notes, visitorId } = useStore();
+  // Everything the live connection told the visitor today, newest first.
+  const items = [...notes].reverse().map((n) => ({
+    ...n, ...NOTE_STYLE[n.kind], time: fmtTime(n.at),
+    to: n.pid ? () => nav.push('Pavilion', { pid: n.pid }, 'moveIn') : undefined,
+  }));
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <StatusBar style="dark" />
@@ -400,10 +445,19 @@ export function Notifications() {
         <Txt style={ar(700, 34, 46)}>التنبيهات</Txt>
         <Txt style={[ar(400, 15, 24), { color: C.slate }]}>نرسل لك المهم فقط أثناء زيارتك.</Txt>
       </View>
-      <View style={{ position: 'absolute', left: s(16), right: s(16), top: s(256), gap: s(10) }}>
+      <ScrollView style={{ position: 'absolute', left: 0, right: 0, top: s(256), bottom: 0 }} contentContainerStyle={{ paddingHorizontal: s(16), paddingBottom: s(46), gap: s(10) }} showsVerticalScrollIndicator={false}>
         <Txt style={[ar(600, 13, 19), { color: C.slate }]}>اليوم</Txt>
+        {!items.length && (
+          <View style={{ backgroundColor: C.white, borderRadius: s(22), padding: s(18), gap: s(6), alignItems: 'flex-end', boxShadow: raised }}>
+            <Icon name="bell" size={24} color={C.aquaText} />
+            <Txt style={ar(600, 17, 27)}>لا توجد تنبيهات بعد</Txt>
+            <Txt style={[ar(400, 15, 24), { color: C.slate }]}>
+              {visitorId ? 'ننبهك هنا عندما يتغيّر الازدحام في محطتك التالية أو نجد لك مسارًا أفضل.' : 'خطط يومك لتصلك تنبيهات الازدحام واقتراحات المسار أثناء زيارتك.'}
+            </Txt>
+          </View>
+        )}
         {items.map((n, i) => (
-          <Pressy key={i} onPress={n.to} scaleTo={0.99}>
+          <Pressy key={n.id} onPress={n.to} scaleTo={0.99}>
             <Animated.View entering={FadeIn.delay(i * 70).duration(M.sheet)} style={{ backgroundColor: C.white, borderRadius: s(22), padding: s(16), flexDirection: 'row', gap: s(12), boxShadow: raised }}>
               <View style={{ flex: 1, gap: s(3) }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: s(8) }}>
@@ -425,7 +479,7 @@ export function Notifications() {
             <Txt style={[ar(400, 13, 21), { color: C.slate }]}>المهمة فقط · 3 بالساعة كحد أقصى</Txt>
           </View>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }

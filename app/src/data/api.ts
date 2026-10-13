@@ -44,6 +44,8 @@ export type NewVisitor = {
 };
 export type VisitorCreated = { visitor_id: string; language: string; wishlist: WishItem[]; wishlist_source: string; route: Route };
 export type CrowdItem = { pavilion_id: string; wait_min: number; queue_length: number; status: 'low' | 'medium' | 'high' };
+/** Expected wait now and in 30/60/90 minutes (GET /pavilions/{id}/forecast). */
+export type ForecastPoint = { minutes: number; at: string; wait_min: number };
 export type BriefStop = { pavilion_id: string; arrive_at: string; wait_min: number };
 export type Offer = {
   type: 'reroute_offer';
@@ -83,6 +85,8 @@ export interface Backend {
   accept(vid: string, offerId: string): Promise<Route>;
   decline(vid: string, offerId: string): Promise<void>;
   crowd(): Promise<CrowdItem[]>;
+  /** The planner's wait forecast for one pavilion: ML model + latest observation + routed visitors. */
+  forecast(pavilionId: string): Promise<ForecastPoint[]>;
   live(vid: string, onMessage: (m: LiveMessage) => void): () => void;
   /** Demo control: make a pavilion's measured wait jump (POST /debug/observe). */
   spike(pavilionId: string, waitMin: number): Promise<void>;
@@ -109,6 +113,7 @@ function liveBackend(base: string): Backend {
     accept: (vid, oid) => call(`/visitors/${vid}/offers/${oid}/accept`, { method: 'POST' }),
     decline: async (vid, oid) => { await call(`/visitors/${vid}/offers/${oid}/decline`, { method: 'POST' }); },
     crowd: async () => (await call<{ pavilions: CrowdItem[] }>('/crowd')).pavilions,
+    forecast: (pid) => call(`/pavilions/${encodeURIComponent(pid)}/forecast`),
     live: (vid, onMessage) => {
       let ws: WebSocket | null = null;
       let closed = false;
