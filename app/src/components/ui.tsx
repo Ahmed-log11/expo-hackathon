@@ -3,7 +3,7 @@
  * Horizontal rows keep Figma's child order left → right, so RTL designs come out exactly as drawn.
  */
 import React from 'react';
-import { Pressable, StyleProp, StyleSheet, Text, TextProps, TextStyle, View, ViewStyle } from 'react-native';
+import { Pressable, ScrollView, StyleProp, StyleSheet, Text, TextProps, TextStyle, View, ViewProps, ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { SvgXml } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
@@ -58,14 +58,15 @@ const GLASS = {
     drop: scaleShadow('0px 8px 32px rgba(8,38,36,0.12)'), inset: scaleShadow('inset 0px 1px 0px rgba(255,255,255,0.70)'),
   },
 };
-export function Glass({ level = 'regular', radius, fill, border, borderWidth = 1, style, children, pointerEvents }: {
+export function Glass({ level = 'regular', radius, fill, border, borderWidth = 1, style, children, pointerEvents, onLayout }: {
   level?: 'clear' | 'regular'; radius: number; fill?: string; border?: string; borderWidth?: number;
   style?: StyleProp<ViewStyle>; children?: React.ReactNode; pointerEvents?: 'auto' | 'none' | 'box-none';
+  onLayout?: ViewProps['onLayout'];
 }) {
   const g = GLASS[level];
   const r = s(radius);
   return (
-    <View style={[{ borderRadius: r, boxShadow: g.drop }, style]} pointerEvents={pointerEvents}>
+    <View style={[{ borderRadius: r, boxShadow: g.drop }, style]} pointerEvents={pointerEvents} onLayout={onLayout}>
       <View style={[StyleSheet.absoluteFill, { borderRadius: r, overflow: 'hidden' }]} pointerEvents="none">
         <BlurView intensity={g.intensity} tint="light" style={StyleSheet.absoluteFill} />
         <View style={[StyleSheet.absoluteFill, { backgroundColor: fill ?? g.fill }]} />
@@ -181,6 +182,29 @@ export function Chip({ label, selected, onPress }: { label: string; selected?: b
   );
 }
 
+// ---------- horizontal RTL row (chips, carousels) ----------
+/**
+ * The first item sits on the right and the row scrolls toward the left, with 16 of breathing room at both ends.
+ * Items are laid out left → right in reverse order rather than with row-reverse, which mis-sizes the scroll
+ * content on iOS (a blank gap past the last item). Starts scrolled to the right end, once.
+ */
+export function RtlScrollRow({ children, gap = 8, style }: { children: React.ReactNode; gap?: number; style?: StyleProp<ViewStyle> }) {
+  const ref = React.useRef<ScrollView>(null);
+  const placed = React.useRef(false);
+  return (
+    <ScrollView
+      ref={ref}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={style}
+      onContentSizeChange={() => { if (!placed.current) { placed.current = true; ref.current?.scrollToEnd({ animated: false }); } }}
+      contentContainerStyle={{ paddingHorizontal: s(16), gap: s(gap), flexDirection: 'row' }}
+    >
+      {React.Children.toArray(children).reverse()}
+    </ScrollView>
+  );
+}
+
 // ---------- crowd status ----------
 export type CrowdLevel = 'low' | 'moderate' | 'busy' | 'critical';
 export const CROWD = {
@@ -196,6 +220,25 @@ export function levelFor(wait: number): CrowdLevel {
   if (wait < 50) return 'busy';
   return 'critical';
 }
+/**
+ * Crowd wording, in one place so every screen says it the same way:
+ *   compact (map labels, list chips)   "متوسط · 22 د"
+ *   detailed (cards, navigation)       "متوسط الآن" with the wait on its own line: "22 د انتظار"
+ */
+export const crowdText = {
+  word: (level: CrowdLevel) => CROWD[level].word,
+  compact: (wait: number, level: CrowdLevel = levelFor(wait)) => `${CROWD[level].word} · ${wait} د`,
+  now: (level: CrowdLevel) => `${CROWD[level].word} الآن`,
+  wait: (wait: number) => `${wait} د انتظار`,
+};
+/** Crowd status pill: compact ("متوسط · 22 د") or now ("متوسط الآن"). */
+export function CrowdStatus({ wait, level, variant = 'compact', size, style }: {
+  wait: number; level?: CrowdLevel; variant?: 'compact' | 'now'; size?: 'small' | 'medium'; style?: StyleProp<ViewStyle>;
+}) {
+  const lvl = level ?? levelFor(wait);
+  return <CrowdPill level={lvl} size={size} style={style} label={variant === 'now' ? crowdText.now(lvl) : crowdText.compact(wait, lvl)} />;
+}
+
 export function CrowdPill({ level, label, size = 'small', style }: { level: CrowdLevel; label: string; size?: 'small' | 'medium'; style?: StyleProp<ViewStyle> }) {
   const c = CROWD[level];
   const small = size === 'small';
@@ -269,11 +312,11 @@ export function Metric({ value, unit = 'د', label, icon }: { value: number | st
     </View>
   );
 }
-export function MetricsRow({ walk, wait, visit }: { walk: number; wait: number; visit: number }) {
-  const div = <View style={{ width: s(1), height: s(40), backgroundColor: C.line }} />;
+export function MetricsRow({ walk, wait, visit, compact }: { walk: number; wait: number; visit: number; compact?: boolean }) {
+  const div = <View style={{ width: s(1), height: s(compact ? 34 : 40), backgroundColor: C.line }} />;
   return (
     <View style={{
-      minHeight: s(79), borderRadius: s(18), backgroundColor: C.canvas, paddingHorizontal: s(14), paddingVertical: s(12),
+      minHeight: s(compact ? 68 : 79), borderRadius: s(18), backgroundColor: C.canvas, paddingHorizontal: s(14), paddingVertical: s(compact ? 8 : 12),
       flexDirection: 'row', alignItems: 'center', gap: s(12),
     }}>
       <Metric value={visit} label="مدة الزيارة" icon="eye" />

@@ -4,7 +4,7 @@
 import React from 'react';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { View } from 'react-native';
-import { C, M, ar, s } from '../theme';
+import { C, M, TAB_BAR_H, ar, s } from '../theme';
 import { Glass, Icon, Pressy, Txt } from './ui';
 import { useNav } from '../nav/Navigator';
 import { useStore } from '../data/store';
@@ -21,15 +21,16 @@ const tabLayout = LinearTransition.duration(260).easing(M.flowOut);
 export function TabBar({ selected, onSelect }: { selected: string; onSelect: (k: string) => void }) {
   const idx = TABS.findIndex((t) => t.key === selected);
   return (
-    <Glass level="regular" radius={33} fill="rgba(255,255,255,0.66)" border="rgba(255,255,255,0.8)"
-      style={{ height: s(66), paddingHorizontal: s(8), flexDirection: 'row', alignItems: 'center', gap: s(4) }}>
+    <Glass level="regular" radius={TAB_BAR_H / 2} fill="rgba(255,255,255,0.66)" border="rgba(255,255,255,0.8)"
+      style={{ height: s(TAB_BAR_H), paddingHorizontal: s(6), flexDirection: 'row', alignItems: 'center', gap: s(4) }}>
       {/* one indicator layer glides between tabs (Smart Animate 260 ms) */}
       {TABS.map((t) => {
         const on = t.key === selected;
         return (
           <Pressy key={t.key} onPress={() => onSelect(t.key)} style={{ flex: 1 }}>
-            <View style={{ flex: 1, height: s(52), borderRadius: s(26), backgroundColor: on ? C.mint : 'transparent', alignItems: 'center', justifyContent: 'center', gap: s(2) }}>
-              <Icon name={t.icon} size={24} color={on ? C.aquaText : C.slate} />
+            {/* 48 tall: above the 44 pt minimum touch target */}
+            <View style={{ flex: 1, height: s(48), borderRadius: s(24), backgroundColor: on ? C.mint : 'transparent', alignItems: 'center', justifyContent: 'center', gap: 0 }}>
+              <Icon name={t.icon} size={22} color={on ? C.aquaText : C.slate} />
               <Txt style={[on ? ar(600, 12, 17) : ar(500, 12, 18), { color: on ? C.aquaText : C.slate, textAlign: 'center' }]}>{t.label}</Txt>
             </View>
           </Pressy>

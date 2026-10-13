@@ -7,8 +7,8 @@ import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeInDown, ZoomIn, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
-import { C, M, VIEW_H, ar, s } from '../theme';
-import { Button, CROWD, CrowdPill, Glass, GlassButton, Icon, Pressy, Txt, levelFor } from '../components/ui';
+import { C, M, SCREEN, VIEW_H, ar, s, useSafe } from '../theme';
+import { Button, CrowdPill, CrowdStatus, Glass, GlassButton, Icon, Pressy, Txt, crowdText, levelFor } from '../components/ui';
 import { useNav, useRoute } from '../nav/Navigator';
 import { AR_DAYS, AR_MONTHS, fmtTime, useStore } from '../data/store';
 import { categoryOf, nameOf, photoOf, walkMinutes } from '../data/places';
@@ -17,6 +17,7 @@ import { PHOTOS } from '../assets/images';
 // ---------- Arrived ----------
 export function Arrived() {
   const nav = useNav();
+  const safe = useSafe();
   const { params } = useRoute<{ pid: string }>();
   const { route, done, crowd, event } = useStore();
   const pid = params?.pid ?? route?.stops[0]?.pavilion_id ?? 'kr';
@@ -27,6 +28,10 @@ export function Arrived() {
   const lvl = levelFor(waitNow);
   const [busy, setBusy] = useState(false);
   const once = useRef(false);   // a double tap must not send the events or navigate twice
+  // The panel is anchored to the bottom and sized by its content (at least the design's 500-from-top), so long
+  // notes never slide under the buttons; the title and caption ride just above it.
+  const [ctaH, setCtaH] = useState(s(104));
+  const [panelH, setPanelH] = useState(SCREEN.H - s(500));
 
   const start = async () => {
     if (once.current) return;
@@ -40,7 +45,7 @@ export function Arrived() {
   const stat = (label: string, value: React.ReactNode, foot: string) => (
     <View style={{ flex: 1, minHeight: s(111), backgroundColor: C.white, borderRadius: s(20), padding: s(14), gap: s(6), alignItems: 'flex-end' }}>
       <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{label}</Txt>
-      {value}
+      <View style={{ minHeight: s(40), justifyContent: 'center', alignItems: 'flex-end' }}>{value}</View>
       <Txt style={[ar(500, 12, 18), { color: C.slate2 }]}>{foot}</Txt>
     </View>
   );
@@ -51,36 +56,36 @@ export function Arrived() {
       <View style={{ height: s(520) }}>
         <Image source={photoOf(pid)} style={StyleSheet.absoluteFill} contentFit="cover" />
         <LinearGradient colors={['rgba(5,31,28,0.35)', 'rgba(5,31,28,0)', 'rgba(5,31,28,0.15)', 'rgba(5,31,28,0.85)']} locations={[0, 0.3, 0.55, 1]} style={StyleSheet.absoluteFill} />
-        <View style={{ position: 'absolute', left: s(16), top: s(462), backgroundColor: 'rgba(5,31,28,0.45)', borderRadius: s(10), paddingHorizontal: s(10), paddingVertical: s(4) }}>
-          <Txt style={[ar(500, 12, 18), { color: C.white }]}>تصوّر معماري · إكسبو 2030 الرياض</Txt>
-        </View>
-        <Animated.View entering={FadeInDown.delay(120).duration(M.sheet)} style={{ position: 'absolute', left: s(16), right: s(16), top: s(380), gap: s(2) }}>
-          <Txt style={[ar(700, 34, 46), { color: C.white }]}>وصلت</Txt>
-          <Txt style={[ar(700, 22, 31), { color: 'rgba(255,255,255,0.9)' }]}>{nameOf(pid)}</Txt>
-        </Animated.View>
       </View>
-      <GlassButton icon="chevron-right" level="clear" style={{ position: 'absolute', left: s(16), top: s(56) }} onPress={() => nav.back('moveOut')} />
+      <View style={{ position: 'absolute', left: s(16), bottom: panelH + s(16), backgroundColor: 'rgba(5,31,28,0.45)', borderRadius: s(10), paddingHorizontal: s(10), paddingVertical: s(4) }}>
+        <Txt style={[ar(500, 12, 18), { color: C.white }]}>تصوّر معماري · إكسبو 2030 الرياض</Txt>
+      </View>
+      <Animated.View entering={FadeInDown.delay(120).duration(M.sheet)} style={{ position: 'absolute', left: s(16), right: s(16), bottom: panelH + s(14), gap: s(2) }}>
+        <Txt style={[ar(700, 34, 46), { color: C.white }]}>وصلت</Txt>
+        <Txt style={[ar(700, 22, 31), { color: 'rgba(255,255,255,0.9)' }]}>{nameOf(pid)}</Txt>
+      </Animated.View>
+      <GlassButton icon="chevron-right" level="clear" style={{ position: 'absolute', right: s(16), top: safe.top(56) }} onPress={() => nav.back('moveOut')} />
       <Glass level="clear" radius={20} fill="rgba(255,255,255,0.2)" border="rgba(255,255,255,0.38)"
-        style={{ position: 'absolute', right: s(16), top: s(58), height: s(37), paddingHorizontal: s(14), flexDirection: 'row', alignItems: 'center', gap: s(6) }}>
+        style={{ position: 'absolute', left: s(16), top: safe.top(56) + s(5.5), height: s(37), paddingHorizontal: s(14), flexDirection: 'row', alignItems: 'center', gap: s(6) }}>
         <Txt style={[ar(600, 13, 19), { color: C.white }]}>{`المحطة ${done.length + 1} من ${total}`}</Txt>
         <View style={{ width: s(18), height: s(18), borderRadius: s(9), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="check" size={14} color={C.ink} />
         </View>
       </Glass>
 
-      <View style={{ position: 'absolute', top: s(500), left: 0, right: 0, bottom: 0, backgroundColor: C.canvas, borderTopLeftRadius: s(30), borderTopRightRadius: s(30), paddingHorizontal: s(16), paddingTop: s(20), gap: s(14) }}>
+      <View onLayout={(e) => setPanelH(e.nativeEvent.layout.height)} style={{ position: 'absolute', minHeight: SCREEN.H - s(500), left: 0, right: 0, bottom: 0, backgroundColor: C.canvas, borderTopLeftRadius: s(30), borderTopRightRadius: s(30), paddingHorizontal: s(16), paddingTop: s(20), paddingBottom: safe.ctaBottom - s(6) + ctaH + s(14), gap: s(14) }}>
         <View style={{ flexDirection: 'row', gap: s(10) }}>
           {stat('مدة الزيارة', <Txt style={ar(700, 22, 31)}>{`${stop?.visit_min ?? 30} د`}</Txt>, 'تقريبًا')}
-          {stat('الحالة', <CrowdPill level={lvl} size="medium" label={CROWD[lvl].word} />, waitNow <= planned ? 'الطابور يتحرك' : 'الطابور أبطأ قليلًا')}
+          {stat('الحالة', <CrowdPill level={lvl} size="medium" label={crowdText.word(lvl)} />, waitNow <= planned ? 'الطابور يتحرك' : 'الطابور أبطأ قليلًا')}
           {stat('الانتظار الآن', <Txt style={ar(700, 22, 31)}>{`${waitNow} د`}</Txt>, waitNow < planned ? 'أقل من المتوقع' : waitNow === planned ? 'كما توقعنا' : 'أعلى قليلًا من المتوقع')}
         </View>
-        <View style={{ backgroundColor: C.mint, borderRadius: s(18), padding: s(14), flexDirection: 'row', gap: s(10) }}>
+        <View style={{ backgroundColor: C.mint, borderRadius: s(18), padding: s(14), flexDirection: 'row-reverse', alignItems: 'center', gap: s(10) }}>
           <Icon name="bell" size={20} color={C.aquaText} />
           <Txt style={[ar(400, 15, 24), { color: C.deep, flex: 1 }]}>خطتك محفوظة. ننبهك قبل موعد محطتك التالية بخمس دقائق.</Txt>
         </View>
       </View>
 
-      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(40), gap: s(4), alignItems: 'center' }}>
+      <View onLayout={(e) => setCtaH(e.nativeEvent.layout.height)} style={{ position: 'absolute', left: s(16), right: s(16), bottom: safe.ctaBottom - s(6), gap: s(4), alignItems: 'center' }}>
         <Button label="بدأت الزيارة" icon="eye" variant="accent" disabled={busy} style={{ alignSelf: 'stretch' }} onPress={start} />
         <Button label="عرض تفاصيل الجناح" variant="tertiary" size="medium" onPress={() => nav.push('Pavilion', { pid }, 'moveIn')} />
       </View>
@@ -94,6 +99,7 @@ const MIN_REAL_VISIT = 5;
 
 export function VisitComplete() {
   const nav = useNav();
+  const safe = useSafe();
   const { params } = useRoute<{ pid: string }>();
   const { route, done, crowd, entered, event, savedByReroutes, mode } = useStore();
   const pid = params?.pid ?? 'kr';
@@ -158,11 +164,11 @@ export function VisitComplete() {
             <View style={{ flex: 1, alignItems: 'flex-end', gap: s(4) }}>
               <Txt style={ar(600, 17, 27)}>{nameOf(next.pavilion_id)}</Txt>
               <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{`${categoryOf(next.pavilion_id)} · ${next.walk_from_prev_min || walkMinutes(pid, next.pavilion_id)} د مشي`}</Txt>
-              <CrowdPill level={nlvl} label={`${CROWD[nlvl].word} · ${nextWait} د`} />
+              <CrowdStatus wait={nextWait} level={nlvl} />
             </View>
             <Image source={photoOf(next.pavilion_id)} style={{ width: s(76), height: s(76), borderRadius: s(16) }} contentFit="cover" />
           </View>
-          <View style={{ backgroundColor: C.white, borderWidth: s(1), borderColor: C.line, borderRadius: s(16), padding: s(12), flexDirection: 'row', gap: s(8) }}>
+          <View style={{ backgroundColor: C.white, borderWidth: s(1), borderColor: C.line, borderRadius: s(16), padding: s(12), flexDirection: 'row-reverse', alignItems: 'center', gap: s(8) }}>
             <Icon name="crowd" size={18} color={C.aquaText} />
             <Txt style={[ar(400, 15, 24), { color: C.slate, flex: 1 }]}>
               {nlvl === 'low'
@@ -183,7 +189,7 @@ export function VisitComplete() {
         </Animated.View>
       )}
 
-      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(46) }}>
+      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: safe.ctaBottom }}>
         <Button label={next ? 'المحطة التالية' : 'إنهاء اليوم'} variant="accent" disabled={busy} onPress={goNext} />
       </View>
     </View>
@@ -198,6 +204,7 @@ function hm(min: number) {
 
 export function Summary() {
   const nav = useNav();
+  const safe = useSafe();
   const { summary, loadSummary, plan, resetDay } = useStore();
   useEffect(() => { loadSummary().catch(() => {}); }, []);
   const d = plan.start;
@@ -247,13 +254,13 @@ export function Summary() {
           {!visited.length && <Txt style={[ar(400, 15, 24), { color: C.mint, paddingVertical: s(12) }]}>لا توجد زيارات مسجّلة بعد.</Txt>}
         </Animated.View>
         {eased.length > 0 && (
-          <Animated.View entering={FadeIn.delay(260).duration(M.sheet)} style={{ flexDirection: 'row', gap: s(10) }}>
+          <Animated.View entering={FadeIn.delay(260).duration(M.sheet)} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: s(10) }}>
             <Icon name="crowd" size={18} color={C.aqua} />
             <Txt style={[ar(400, 13, 21), { color: C.mint, flex: 1 }]}>{`اتبعت اقتراحًا لتعديل مسارك، وساعدت في تخفيف الزحمة عن ${eased.map(nameOf).join(' و')}.`}</Txt>
           </Animated.View>
         )}
       </ScrollView>
-      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(46), flexDirection: 'row', gap: s(10) }}>
+      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: safe.ctaBottom, flexDirection: 'row', gap: s(10) }}>
         <Pressy style={{ flex: 150 }}>
           <Glass level="clear" radius={22} fill="rgba(255,255,255,0.2)" border="rgba(255,255,255,0.4)" style={{ height: s(56), alignItems: 'center', justifyContent: 'center' }}>
             <Txt style={[ar(600, 16, 23), { color: C.white, textAlign: 'center' }]}>مشاركة يومي</Txt>

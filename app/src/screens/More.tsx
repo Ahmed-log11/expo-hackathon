@@ -10,8 +10,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, LinearGradient as SvgLinear, Path, Stop } from 'react-native-svg';
 import Animated, { FadeIn, FadeOut, LinearTransition, SlideInDown, SlideOutDown, useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
-import { C, M, ar, s, sf } from '../theme';
-import { Button, CROWD, Chip, CrowdPill, Glass, GlassButton, Icon, Pressy, RoundButton, Txt, levelFor } from '../components/ui';
+import { C, M, ar, s, sf, useSafe } from '../theme';
+import { Button, Chip, CrowdPill, CrowdStatus, Glass, GlassButton, Icon, Pressy, RoundButton, RtlScrollRow, Txt, crowdText, levelFor } from '../components/ui';
 import { TabBar, useTabs } from '../components/tabs';
 import { useNav, useRoute } from '../nav/Navigator';
 import { AR_DAYS, AR_MONTHS, fmtTime, useStore } from '../data/store';
@@ -29,7 +29,7 @@ const raised = `0px ${s(2)}px ${s(8)}px rgba(8,38,36,0.06), 0px ${s(8)}px ${s(24
 function forecastFor(now: number) {
   return [now, Math.round(now * 2.8), Math.round(now * 1.6), Math.max(5, Math.round(now * 0.9))];
 }
-const LEVEL_WORD = (w: number) => CROWD[levelFor(w)].word;
+const LEVEL_WORD = (w: number) => crowdText.word(levelFor(w));
 
 function Sparkline({ values }: { values: number[] }) {
   // RTL: "now" sits on the right; later times run toward the left.
@@ -83,7 +83,7 @@ function WaitInsight({ wait, values, best }: { wait: number; values: number[]; b
         </View>
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <CrowdPill level={lvl} size="medium" label={`${CROWD[lvl].word} الآن`} />
+        <CrowdStatus wait={wait} level={lvl} variant="now" size="medium" />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(6) }}>
           <Txt style={[ar(600, 15, 22), { color: trendColor }]}>{trend}</Txt>
           <Icon name="straight" size={16} color={trendColor} style={falling ? { transform: [{ rotate: '180deg' }] } : undefined} />
@@ -100,6 +100,7 @@ function WaitInsight({ wait, values, best }: { wait: number; values: number[]; b
 // ---------- Pavilion ----------
 export function Pavilion() {
   const nav = useNav();
+  const safe = useSafe();
   const { params } = useRoute<{ pid: string }>();
   const { crowd, route, plan, setPlan, favorites, toggleFavorite } = useStore();
   const pid = params?.pid ?? 'jp';
@@ -138,7 +139,7 @@ export function Pavilion() {
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <StatusBar style="light" />
-      <ScrollView contentContainerStyle={{ paddingBottom: s(150) }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: safe.ctaBottom + s(56) + s(40) }} showsVerticalScrollIndicator={false}>
         <View style={{ height: s(380) }}>
           <Image source={photoOf(pid)} style={StyleSheet.absoluteFill} contentFit="cover" />
           <LinearGradient colors={['rgba(5,31,28,0.45)', 'rgba(5,31,28,0)']} style={{ position: 'absolute', left: 0, right: 0, top: 0, height: s(140) }} />
@@ -180,10 +181,10 @@ export function Pavilion() {
         </View>
       </ScrollView>
 
-      <GlassButton icon="chevron-right" level="clear" style={{ position: 'absolute', right: s(16), top: s(56) }} onPress={() => nav.back('moveOut')} />
-      <GlassButton icon="heart" level="clear" selected={fav} onPress={() => toggleFavorite(pid)} style={{ position: 'absolute', left: s(16), top: s(56) }} />
+      <GlassButton icon="chevron-right" level="clear" style={{ position: 'absolute', right: s(16), top: safe.top(56) }} onPress={() => nav.back('moveOut')} />
+      <GlassButton icon="heart" level="clear" selected={fav} onPress={() => toggleFavorite(pid)} style={{ position: 'absolute', left: s(16), top: safe.top(56) }} />
       <LinearGradient colors={['rgba(243,248,246,0)', C.canvas]} locations={[0, 0.3]} pointerEvents="box-none"
-        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: s(16), paddingTop: s(24), paddingBottom: s(46), flexDirection: 'row', gap: s(10) }}>
+        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: s(16), paddingTop: s(24), paddingBottom: safe.ctaBottom, flexDirection: 'row', gap: s(10) }}>
         <Button label={inPlan ? 'في خطتك' : 'أضف لخطتي'} icon={inPlan ? 'check' : 'plus'} variant="secondary" padX={12} style={{ flex: 140 }}
           onPress={() => { if (!inPlan) setPlan({ mustVisit: [...plan.mustVisit, pid] }); }} />
         <Button label="توجّه الآن" icon="locate" variant="accent" style={{ flex: 220 }} onPress={() => nav.back('moveOut')} />
@@ -196,42 +197,47 @@ export function Pavilion() {
             <Pressable style={StyleSheet.absoluteFill} onPress={() => setSheet(false)} />
           </Animated.View>
           <Animated.View entering={SlideInDown.duration(380).easing(M.continuity)} exiting={SlideOutDown.duration(M.sheet)}
-            style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: s(249), backgroundColor: C.canvas, borderTopLeftRadius: s(34), borderTopRightRadius: s(34), paddingHorizontal: s(16), paddingTop: s(8), gap: s(16), boxShadow: `0px ${s(12)}px ${s(40)}px rgba(8,38,36,0.16)` }}>
-            <View style={{ alignSelf: 'flex-end', width: s(36), height: s(5), borderRadius: s(3), backgroundColor: 'rgba(96,120,116,0.45)' }} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Pressy onPress={() => setSheet(false)}>
-                <View style={{ width: s(40), height: s(40), borderRadius: s(22), backgroundColor: '#E8F0ED', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="close" size={20} color={C.ink} />
+            style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: Math.max(s(249), safe.insetTop + s(16)), backgroundColor: C.canvas, borderTopLeftRadius: s(34), borderTopRightRadius: s(34), boxShadow: `0px ${s(12)}px ${s(40)}px rgba(8,38,36,0.16)` }}>
+            {/* Header stays put; the forecast below scrolls when it is taller than the sheet. */}
+            <View style={{ paddingHorizontal: s(16), paddingTop: s(8), paddingBottom: s(12), gap: s(12) }}>
+              <View style={{ alignSelf: 'flex-end', width: s(36), height: s(5), borderRadius: s(3), backgroundColor: 'rgba(96,120,116,0.45)' }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Pressy onPress={() => setSheet(false)}>
+                  <View style={{ width: s(44), height: s(44), borderRadius: s(22), backgroundColor: '#E8F0ED', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="close" size={20} color={C.ink} />
+                  </View>
+                </Pressy>
+                <View style={{ alignItems: 'flex-end', gap: s(2) }}>
+                  <Txt style={ar(700, 22, 31)}>توقعات الانتظار</Txt>
+                  <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{`${nameOf(pid)} · اليوم${model && backend.mode === 'live' ? ' · من نموذج تعلّم آلي' : ''}`}</Txt>
                 </View>
-              </Pressy>
-              <View style={{ alignItems: 'flex-end', gap: s(2) }}>
-                <Txt style={ar(700, 22, 31)}>توقعات الانتظار</Txt>
-                <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{`${nameOf(pid)} · اليوم${model && backend.mode === 'live' ? ' · من نموذج تعلّم آلي' : ''}`}</Txt>
               </View>
             </View>
-            <WaitInsight wait={values[row]} values={values.slice(row).concat(values.slice(0, row))} best={best} />
-            <View style={{ backgroundColor: C.white, borderRadius: s(22), paddingHorizontal: s(16), paddingVertical: s(4) }}>
-              {values.map((v, i) => {
-                const lvl = levelFor(v);
-                return (
-                  <View key={i}>
-                    {i > 0 && <View style={{ height: s(1), backgroundColor: C.line }} />}
-                    <Pressable onPress={() => setRow(i)}>
-                      <Animated.View layout={LinearTransition.duration(M.standard)} style={{ height: s(52), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: s(0), backgroundColor: row === i ? C.mint : 'transparent', marginHorizontal: s(-16), paddingLeft: s(16), paddingRight: s(16) }}>
-                        <CrowdPill level={lvl} label={CROWD[lvl].word} />
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
-                          <Txt style={[ar(600, 17, 27), { color: row === i ? C.ink : C.slate }]}>{`${v} د`}</Txt>
-                          <Txt style={[row === i ? ar(600, 17, 27) : ar(400, 17, 29)]}>{i === 0 ? 'الآن' : fmtTime(times[i])}</Txt>
-                        </View>
-                      </Animated.View>
-                    </Pressable>
-                  </View>
-                );
-              })}
-            </View>
-            <Txt style={[ar(400, 13, 21), { color: C.slate }]}>
-              {eases ? `أو بعد ${fmtTime(times[later])} عندما يخف الازدحام` : 'لا نتوقع أن يخف الازدحام خلال الساعة والنصف القادمة'}
-            </Txt>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: s(16), paddingTop: s(4), paddingBottom: safe.insetBottom + s(24), gap: s(16) }} showsVerticalScrollIndicator={false}>
+              <WaitInsight wait={values[row]} values={values.slice(row).concat(values.slice(0, row))} best={best} />
+              <View style={{ backgroundColor: C.white, borderRadius: s(22), overflow: 'hidden' }}>
+                {values.map((v, i) => {
+                  const lvl = levelFor(v);
+                  const on = row === i;
+                  return (
+                    <View key={i}>
+                      {i > 0 && <View style={{ height: s(1), backgroundColor: C.line, marginHorizontal: s(16) }} />}
+                      <Pressable onPress={() => setRow(i)}>
+                        {/* RTL row: time on the right, then the wait; the crowd level sits at the far left. */}
+                        <Animated.View layout={LinearTransition.duration(M.standard)} style={{ minHeight: s(56), flexDirection: 'row-reverse', alignItems: 'center', gap: s(12), paddingHorizontal: s(16), backgroundColor: on ? C.mint : 'transparent' }}>
+                          <Txt style={[on ? ar(600, 17, 27) : ar(400, 17, 29), { minWidth: s(72) }]}>{i === 0 ? 'الآن' : fmtTime(times[i])}</Txt>
+                          <Txt style={[ar(600, 17, 27), { color: on ? C.ink : C.slate, flex: 1 }]}>{`${v} د`}</Txt>
+                          <CrowdPill level={lvl} label={crowdText.word(lvl)} style={{ alignSelf: 'center' }} />
+                        </Animated.View>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+              <Txt style={[ar(400, 13, 21), { color: C.slate }]}>
+                {eases ? `أو بعد ${fmtTime(times[later])} عندما يخف الازدحام` : 'لا نتوقع أن يخف الازدحام خلال الساعة والنصف القادمة'}
+              </Txt>
+            </ScrollView>
           </Animated.View>
         </>
       )}
@@ -244,11 +250,10 @@ const CATS = [{ k: 'all', l: 'الكل' }, { k: 'quiet', l: 'هادئ الآن' 
 
 export function Explore() {
   const nav = useNav();
+  const safe = useSafe();
   const onTab = useTabs('explore');
   const { crowd } = useStore();
   const [cat, setCat] = useState('all');
-  const chips = useRef<ScrollView>(null);
-  const carousel = useRef<ScrollView>(null);
   const quiet = useMemo(() => [...PAVILION_IDS]
     .filter((id) => cat === 'all' || cat === 'quiet' || (PLACES[id].tags ?? []).includes(cat))
     .sort((a, b) => (crowd[a] ?? 20) - (crowd[b] ?? 20) || (PLACES[b].popularity ?? 0) - (PLACES[a].popularity ?? 0))
@@ -259,8 +264,10 @@ export function Explore() {
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={{ paddingBottom: s(130) }} showsVerticalScrollIndicator={false}>
-        <View style={{ marginTop: s(58), marginHorizontal: s(16), minHeight: s(46), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Fixed header below the safe area: title + bell, search, category chips. Only the content under it scrolls,
+          so nothing slides up under the status bar / Dynamic Island. */}
+      <View style={{ paddingTop: safe.top(58), backgroundColor: C.canvas, zIndex: 1 }}>
+        <View style={{ marginHorizontal: s(16), minHeight: s(46), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <RoundButton icon="bell" onPress={() => nav.push('Notifications')} />
           <Txt style={ar(700, 34, 46)}>استكشف</Txt>
         </View>
@@ -268,11 +275,12 @@ export function Explore() {
           <Txt style={[ar(400, 17, 29), { color: C.slate, flex: 1 }]}>ابحث عن جناح أو تجربة</Txt>
           <Icon name="search" size={22} color={C.slate} />
         </View>
-        <ScrollView ref={chips} horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: s(12) }}
-          onContentSizeChange={() => chips.current?.scrollToEnd({ animated: false })}
-          contentContainerStyle={{ paddingHorizontal: s(16), gap: s(8), flexDirection: 'row-reverse' }}>
+        <RtlScrollRow style={{ marginTop: s(12), flexGrow: 0 }}>
           {CATS.map((c) => <Chip key={c.k} label={c.l} selected={cat === c.k} onPress={() => setCat(c.k)} />)}
-        </ScrollView>
+        </RtlScrollRow>
+        <LinearGradient pointerEvents="none" colors={[C.canvas, 'rgba(243,248,246,0)']} style={{ position: 'absolute', left: 0, right: 0, bottom: s(-14), height: s(14) }} />
+      </View>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: safe.tabClear }} showsVerticalScrollIndicator={false}>
         <Pressy style={{ marginTop: s(16), marginHorizontal: s(16) }} scaleTo={0.99}>
           <View style={{ height: s(196), borderRadius: s(26), overflow: 'hidden' }}>
             <Image source={PHOTOS.interactive} style={StyleSheet.absoluteFill} contentFit="cover" />
@@ -288,16 +296,15 @@ export function Explore() {
           </View>
         </Pressy>
         <SectionHead title="هادئ الآن" onAll={() => nav.push('Favorites')} />
-        <ScrollView ref={carousel} horizontal showsHorizontalScrollIndicator={false} onContentSizeChange={() => carousel.current?.scrollToEnd({ animated: false })}
-          contentContainerStyle={{ paddingHorizontal: s(16), gap: s(14), flexDirection: 'row-reverse' }}>
+        <RtlScrollRow key={cat} gap={14}>
           {quiet.map((id) => <PavilionTile key={id} id={id} wait={crowd[id]} onPress={() => nav.push('Pavilion', { pid: id }, 'moveIn')} />)}
-        </ScrollView>
+        </RtlScrollRow>
         <SectionHead title="قريب منك" onAll={() => nav.push('Favorites')} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: s(16), gap: s(14), flexDirection: 'row-reverse' }}>
+        <RtlScrollRow gap={14}>
           {near.map((id) => <PavilionTile key={id} id={id} wait={crowd[id]} onPress={() => nav.push('Pavilion', { pid: id }, 'moveIn')} />)}
-        </ScrollView>
+        </RtlScrollRow>
       </ScrollView>
-      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(30) }}>
+      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: safe.floatBottom }}>
         <TabBar selected="explore" onSelect={onTab} />
       </View>
     </View>
@@ -337,7 +344,7 @@ function PavilionTile({ id, wait = 12, onPress }: { id: string; wait?: number; o
             <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{`${walkMinutes('icon', id)} د`}</Txt>
             <Icon name="walk" size={14} color={C.slate} />
           </View>
-          <CrowdPill level={lvl} label={`${CROWD[lvl].word} · ${wait} د`} />
+          <CrowdStatus wait={wait} level={lvl} />
         </View>
       </View>
     </Pressy>
@@ -351,24 +358,30 @@ function placesAr(n: number) {
 
 export function Favorites() {
   const nav = useNav();
+  const safe = useSafe();
   const onTab = useTabs('explore');
   const { crowd, route, plan, setPlan, favorites: saved, toggleFavorite } = useStore();
   const [expanded, setExpanded] = useState(() => saved[saved.length - 1] ?? '');
   const [added, setAdded] = useState<string[]>([]);
   const inPlan = (id: string) => !!route?.stops.some((x) => x.pavilion_id === id) || plan.mustVisit.includes(id) || added.includes(id);
   const busyOne = saved.find((id) => levelFor(crowd[id] ?? 12) === 'busy' || levelFor(crowd[id] ?? 12) === 'critical') ?? (saved.includes(expanded) ? expanded : '');
+  // Header clears the status bar / Dynamic Island; the list below moves with it.
+  const headerTop = safe.top(56);
+  const listShift = headerTop - s(56);
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <StatusBar style="dark" />
-      <View style={{ position: 'absolute', left: s(16), top: s(56), width: s(238), gap: s(4) }}>
+      <View style={{ position: 'absolute', left: s(16), top: headerTop, width: s(238), gap: s(4) }}>
         <View style={{ height: s(46), flexDirection: 'row', justifyContent: 'flex-end' }}>
           <RoundButton icon="chevron-right" onPress={() => nav.back()} />
         </View>
         <Txt style={ar(700, 34, 46)}>المحفوظة</Txt>
         <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{saved.length ? `${placesAr(saved.length)} · نعرض لك حالة الازدحام مباشرة` : 'نعرض لك حالة الازدحام مباشرة'}</Txt>
       </View>
-      <ScrollView style={{ position: 'absolute', left: 0, right: 0, top: s(256), bottom: 0 }} contentContainerStyle={{ paddingLeft: s(16), paddingBottom: s(130) }} showsVerticalScrollIndicator={false}>
-      <View style={{ width: s(328), gap: s(12) }}>
+      {/* The list scrolls under the header and clears the tab bar, so the last card and the tip stay readable. */}
+      <ScrollView style={{ position: 'absolute', left: 0, right: 0, top: s(256) + listShift, bottom: 0 }}
+        contentContainerStyle={{ paddingBottom: safe.tabClear }} showsVerticalScrollIndicator={false}>
+      <View style={{ marginLeft: s(16), width: s(328), gap: s(12) }}>
         {!saved.length && (
           <View style={{ width: s(370), backgroundColor: C.white, borderRadius: s(22), padding: s(18), gap: s(6), alignItems: 'flex-end', boxShadow: raised }}>
             <Icon name="heart" size={24} color={C.aquaText} />
@@ -390,7 +403,7 @@ export function Favorites() {
                   <View style={{ flex: 1, alignItems: 'flex-end', gap: s(4) }}>
                     <Txt style={ar(600, 17, 27)}>{nameOf(id)}</Txt>
                     <Txt style={[ar(400, 13, 21), { color: C.slate }]} numberOfLines={1}>{`${categoryOf(id)} · ${on ? 'في خطتك' : lvl === 'busy' || lvl === 'critical' ? 'أفضل وقت بعد 8 م' : `${walkMinutes('icon', id)} د مشي`}`}</Txt>
-                    <CrowdPill level={lvl} label={`${CROWD[lvl].word} · ${w} د`} />
+                    <CrowdStatus wait={w} level={lvl} />
                   </View>
                   <Image source={photoOf(id)} style={{ width: s(76), height: s(76), borderRadius: s(16) }} contentFit="cover" />
                 </View>
@@ -406,14 +419,14 @@ export function Favorites() {
           );
         })}
         {!!busyOne && (
-          <Animated.View layout={LinearTransition.duration(M.sheet)} style={{ width: s(370), backgroundColor: C.mint, borderRadius: s(18), padding: s(14), flexDirection: 'row', gap: s(8) }}>
+          <Animated.View layout={LinearTransition.duration(M.sheet)} style={{ width: s(370), backgroundColor: C.mint, borderRadius: s(18), padding: s(14), flexDirection: 'row-reverse', alignItems: 'center', gap: s(8) }}>
             <Icon name="clock" size={20} color={C.aquaText} />
             <Txt style={[ar(400, 15, 24), { color: C.deep, flex: 1 }]}>{`${nameOf(busyOne)} ${levelFor(crowd[busyOne] ?? 12) === 'low' ? 'هادئ الآن. وقت مناسب لإضافته.' : 'مزدحم الآن. نقترح إضافته بعد 8 م عندما يقل الانتظار.'}`}</Txt>
           </Animated.View>
         )}
       </View>
       </ScrollView>
-      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(30) }}>
+      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: safe.floatBottom }}>
         <TabBar selected="explore" onSelect={onTab} />
       </View>
     </View>
@@ -429,6 +442,10 @@ const NOTE_STYLE: Record<Note['kind'], { icon: IconName; bg: string; fg: string 
 
 export function Notifications() {
   const nav = useNav();
+  const safe = useSafe();
+  // Header clears the status bar / Dynamic Island; the list below moves with it.
+  const headerTop = safe.top(56);
+  const listShift = headerTop - s(56);
   const { notes, visitorId } = useStore();
   // Everything the live connection told the visitor today, newest first.
   const items = [...notes].reverse().map((n) => ({
@@ -438,14 +455,15 @@ export function Notifications() {
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <StatusBar style="dark" />
-      <View style={{ position: 'absolute', left: s(16), top: s(56), width: s(195), gap: s(4) }}>
+      <View style={{ position: 'absolute', left: s(16), top: headerTop, width: s(195), gap: s(4) }}>
         <View style={{ height: s(46), flexDirection: 'row', justifyContent: 'flex-end' }}>
           <RoundButton icon="chevron-right" onPress={() => nav.back()} />
         </View>
         <Txt style={ar(700, 34, 46)}>التنبيهات</Txt>
         <Txt style={[ar(400, 15, 24), { color: C.slate }]}>نرسل لك المهم فقط أثناء زيارتك.</Txt>
       </View>
-      <ScrollView style={{ position: 'absolute', left: 0, right: 0, top: s(256), bottom: 0 }} contentContainerStyle={{ paddingHorizontal: s(16), paddingBottom: s(46), gap: s(10) }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ position: 'absolute', left: 0, right: 0, top: s(256) + listShift, bottom: 0 }}
+        contentContainerStyle={{ paddingHorizontal: s(16), paddingBottom: safe.insetBottom + s(24), gap: s(10) }} showsVerticalScrollIndicator={false}>
         <Txt style={[ar(600, 13, 19), { color: C.slate }]}>اليوم</Txt>
         {!items.length && (
           <View style={{ backgroundColor: C.white, borderRadius: s(22), padding: s(18), gap: s(6), alignItems: 'flex-end', boxShadow: raised }}>
@@ -522,6 +540,7 @@ function PrefRow({ icon, title, sub, value, toggle, onToggle, last }: { icon: Ic
 }
 
 export function Profile() {
+  const safe = useSafe();
   const onTab = useTabs('profile');
   const { plan, setPlan } = useStore();
   const has = (k: string) => plan.comfort.includes(k);
@@ -536,7 +555,7 @@ export function Profile() {
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={{ paddingTop: s(58), paddingHorizontal: s(16), paddingBottom: s(130), gap: s(20) }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingTop: safe.top(58), paddingHorizontal: s(16), paddingBottom: safe.tabClear, gap: s(20) }} showsVerticalScrollIndicator={false}>
         <Txt style={ar(700, 34, 46)}>حسابي</Txt>
         <View style={{ minHeight: s(82), borderRadius: s(22), backgroundColor: C.deep, padding: s(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ width: s(48), height: s(48), borderRadius: s(26), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}>
@@ -562,7 +581,7 @@ export function Profile() {
           <PrefRow icon="lock" title="بياناتك" value="لا نشاركها" last />
         </>)}
       </ScrollView>
-      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(30) }}>
+      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: safe.floatBottom }}>
         <TabBar selected="profile" onSelect={onTab} />
       </View>
     </View>

@@ -158,11 +158,27 @@ const markerShadow = `0px ${s(2)}px ${s(8)}px rgba(8,38,36,0.06), 0px ${s(8)}px 
 const floatShadow = `0px ${s(12)}px ${s(40)}px rgba(8,38,36,0.16)`;
 const MW = 240;   // layout box for centring a marker on its node
 
-/** Marker/Destination · Next: dark label, stem, aqua node. */
-export function NextMarker({ at, name, meta, level }: { at: Pt; name: string; meta: string; level: CrowdLevel }) {
+/** Labels stay this far inside the map's visible width (design units); the stem and node stay on the place. */
+const EDGE = 10;
+/** Slides a label sideways just enough to keep it on screen, once its width is known. */
+function useEdgeShift(x: number, minLeft = EDGE) {
+  const [w, setW] = React.useState(0);
+  let dx = 0;
+  if (w) {
+    const half = w / 2 / s(1);
+    if (x - half < minLeft) dx = minLeft - (x - half);
+    else if (x + half > 402 - EDGE) dx = 402 - EDGE - (x + half);
+  }
+  return { dx: s(dx), onLayout: (e: { nativeEvent: { layout: { width: number } } }) => setW(e.nativeEvent.layout.width) };
+}
+
+/** Marker/Destination · Next: dark label, stem, aqua node. `minLeft` keeps the label right of an on-screen control column;
+ * `below` hangs the label under the node when there is no room above it (status bar / top card). */
+export function NextMarker({ at, name, meta, level, minLeft, below }: { at: Pt; name: string; meta: string; level: CrowdLevel; minLeft?: number; below?: boolean }) {
+  const edge = useEdgeShift(at.x, minLeft);
   return (
-    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: s(at.x - MW / 2), top: s(at.y - 74), width: s(MW), alignItems: 'center' }}>
-      <View style={{ backgroundColor: C.deep, borderRadius: s(18), paddingHorizontal: s(14), paddingVertical: s(8), flexDirection: 'row', alignItems: 'center', gap: s(8), boxShadow: floatShadow }}>
+    <Animated.View pointerEvents="none" style={{ position: 'absolute', left: s(at.x - MW / 2), top: s(below ? at.y - 8 : at.y - 74), width: s(MW), alignItems: 'center', flexDirection: below ? 'column-reverse' : 'column', justifyContent: 'flex-end' }}>
+      <View onLayout={edge.onLayout} style={{ backgroundColor: C.deep, borderRadius: s(18), paddingHorizontal: s(14), paddingVertical: s(8), flexDirection: 'row', alignItems: 'center', gap: s(8), boxShadow: floatShadow, transform: [{ translateX: edge.dx }] }}>
         <View style={{ alignItems: 'flex-end' }}>
           <Txt style={[ar(600, 15, 22), { color: C.white }]}>{name}</Txt>
           <Txt style={[ar(500, 12, 18), { color: C.mint }]}>{meta}</Txt>
@@ -175,22 +191,33 @@ export function NextMarker({ at, name, meta, level }: { at: Pt; name: string; me
   );
 }
 
-/** Marker/Destination · Pavilion: light label with wait, small node. */
-export function PavilionMarker({ at, name, meta, level }: { at: Pt; name: string; meta: string; level: CrowdLevel }) {
+/** Marker/Destination · Pavilion: light label with wait, small node. `labelHidden` keeps only the node (label would collide). */
+export function PavilionMarker({ at, name, meta, level, labelHidden }: { at: Pt; name: string; meta: string; level: CrowdLevel; labelHidden?: boolean }) {
+  const edge = useEdgeShift(at.x);
   return (
     <View pointerEvents="none" style={{ position: 'absolute', left: s(at.x - MW / 2), top: s(at.y - 63), width: s(MW), alignItems: 'center' }}>
-      <View style={{ backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: s(1), borderColor: C.line, borderRadius: s(14), paddingHorizontal: s(10), paddingVertical: s(6), flexDirection: 'row', alignItems: 'center', gap: s(8), boxShadow: markerShadow }}>
+      <View onLayout={edge.onLayout} style={{ opacity: labelHidden ? 0 : 1, backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: s(1), borderColor: C.line, borderRadius: s(14), paddingHorizontal: s(10), paddingVertical: s(6), flexDirection: 'row', alignItems: 'center', gap: s(8), boxShadow: markerShadow, transform: [{ translateX: edge.dx }] }}>
         <View style={{ alignItems: 'flex-end' }}>
           <Txt style={ar(600, 13, 19)}>{name}</Txt>
           <Txt style={[ar(500, 12, 18), { color: C.slate }]}>{meta}</Txt>
         </View>
         <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: CROWD[level].dot }} />
       </View>
-      <View style={{ width: s(2), height: s(6), backgroundColor: C.muted }} />
+      <View style={{ width: s(2), height: s(6), backgroundColor: labelHidden ? 'transparent' : C.muted }} />
       <View style={{ width: s(12), height: s(12), borderRadius: s(6), backgroundColor: C.white, borderWidth: s(2), borderColor: C.slate2 }} />
     </View>
   );
 }
+
+/** Label boxes in map units (node at the bottom centre), for collision checks before rendering. */
+export const LABEL_BOX = { next: { w: 150, h: 74 }, pavilion: { w: 124, h: 63 } };
+export type Rect = { x0: number; y0: number; x1: number; y1: number };
+export function labelRect(at: Pt, kind: keyof typeof LABEL_BOX, below = false): Rect {
+  const b = LABEL_BOX[kind];
+  const x = Math.min(402 - EDGE - b.w / 2, Math.max(EDGE + b.w / 2, at.x));   // after the edge shift
+  return below ? { x0: x - b.w / 2, x1: x + b.w / 2, y0: at.y - 8, y1: at.y - 8 + b.h } : { x0: x - b.w / 2, x1: x + b.w / 2, y0: at.y - b.h, y1: at.y };
+}
+export const overlaps = (a: Rect, b: Rect, pad = 4) => a.x0 < b.x1 + pad && b.x0 < a.x1 + pad && a.y0 < b.y1 + pad && b.y0 < a.y1 + pad;
 
 /** Marker/Stop · Completed (muted, check) and numbered stops for the day plan. */
 export function StopDot({ at, state, n, size = 30 }: { at: Pt; state: 'done' | 'next' | 'upcoming'; n?: number; size?: number }) {

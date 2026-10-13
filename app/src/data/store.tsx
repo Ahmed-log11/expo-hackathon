@@ -33,7 +33,8 @@ type Store = {
   summary?: Summary;
   error?: string;
   createPlan: () => Promise<void>;
-  accept: () => Promise<void>;
+  /** 'ok' only after the server accepted; 'expired' (HTTP 410) or 'failed' leave the current route untouched. */
+  accept: () => Promise<'ok' | 'expired' | 'failed'>;
   decline: () => Promise<void>;
   event: (type: 'arrived' | 'entered' | 'left', pid: string) => Promise<void>;
   triggerCrowd: () => Promise<void>;
@@ -154,14 +155,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [plan, onLive]);
 
-  const accept = useCallback(async () => {
-    if (!vidRef.current || !offer) return;
+  const accept = useCallback(async (): Promise<'ok' | 'expired' | 'failed'> => {
+    if (!vidRef.current || !offer) return 'failed';
     try {
       const r = await backend.accept(vidRef.current, offer.offer_id);
       setRoute(r);
       setSaved((v) => v + offer.saves_min);
       const order = offer.new.slice(0, 2).map((x) => shortName(x.pavilion_id)).join(' ثم ');
       addNote({ kind: 'reroute', title: 'عدّلنا مسارك لتقليل الانتظار', body: `وفّرت قرابة ${offer.saves_min} دقيقة${order ? ` · ${order}` : ''}.` });
+      return 'ok';
+    } catch (e: any) {
+      return e?.status === 410 ? 'expired' : 'failed';   // the route stays as it was
     } finally {
       setOffer(undefined);
       setAlert(undefined);

@@ -3,11 +3,11 @@
  * Journey Capsule, Live Alert, Reroute Card, Toast.
  */
 import React from 'react';
-import { View, ViewStyle } from 'react-native';
+import { StyleSheet, View, ViewStyle } from 'react-native';
 import { Image, ImageSource } from 'expo-image';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { C, M, ar, s, sf } from '../theme';
-import { Button, CROWD, CrowdLevel, CrowdPill, FlowDots, Glass, Icon, MetricsRow, Pressy, ShadeTag, Txt } from './ui';
+import { Button, CrowdLevel, CrowdStatus, FlowDots, Glass, Icon, MetricsRow, Pressy, ShadeTag, Txt } from './ui';
 
 // ---------- Next Stop Card ----------
 export function NextStopCard({ compact, stopNo, total, eta, name, category, level, shadePct, walk, wait, visit, cta, onCta, onPress, style }: {
@@ -16,7 +16,7 @@ export function NextStopCard({ compact, stopNo, total, eta, name, category, leve
 }) {
   const body = (
     <Glass level="regular" radius={30} fill="rgba(255,255,255,0.84)" border="rgba(255,255,255,0.95)"
-      style={{ paddingHorizontal: s(20), paddingTop: s(16), paddingBottom: s(18), gap: s(compact ? 12 : 14) }}>
+      style={{ paddingHorizontal: s(20), paddingTop: s(compact ? 14 : 16), paddingBottom: s(compact ? 14 : 18), gap: s(compact ? 8 : 12) }}>
       <View style={{ minHeight: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(3) }}>
           <Txt style={[ar(500, 12, 18), { color: C.slate }]}>{`${stopNo} من ${total}`}</Txt>
@@ -29,15 +29,15 @@ export function NextStopCard({ compact, stopNo, total, eta, name, category, leve
           <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: C.aqua }} />
         </View>
       </View>
-      <View style={{ alignItems: 'flex-end', gap: s(6) }}>
+      <View style={{ alignItems: 'flex-end', gap: s(compact ? 0 : 4) }}>
         <Txt style={compact ? ar(700, 22, 31) : ar(700, 28, 38)} numberOfLines={1}>{name}</Txt>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
           {!compact && shadePct != null && shadePct > 0 ? <ShadeTag pct={shadePct} /> : null}
           <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{category}</Txt>
-          <CrowdPill level={level} size="medium" label={`${CROWD[level].word} الآن`} />
+          <CrowdStatus wait={wait} level={level} variant="now" size="medium" />
         </View>
       </View>
-      <MetricsRow walk={walk} wait={wait} visit={visit} />
+      <MetricsRow walk={walk} wait={wait} visit={visit} compact />
       {!compact && cta ? <Button label={cta} icon="locate" variant="accent" onPress={onCta} /> : null}
     </Glass>
   );
@@ -50,7 +50,13 @@ export function NavInstruction({ title, detail, photo, onPress, style }: { title
     <Pressy onPress={onPress} style={style} scaleTo={0.99}>
       <Glass level="regular" radius={26} fill="rgba(255,255,255,0.86)" border="rgba(255,255,255,0.95)"
         style={{ padding: s(14), flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: s(12) }}>
-        {photo ? <Image source={photo} style={{ width: s(60), height: s(60), borderRadius: s(14) }} contentFit="cover" /> : null}
+        {/* Landmark photo: same 52 square and 18 radius as the turn tile, with a hairline and a faint tint so it sits in the glass. */}
+        {photo ? (
+          <View style={{ width: s(52), height: s(52), borderRadius: s(18), overflow: 'hidden', backgroundColor: C.mapBg }}>
+            <Image source={photo} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="center" />
+            <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: s(18), backgroundColor: 'rgba(7,60,58,0.06)', borderWidth: s(1), borderColor: 'rgba(255,255,255,0.6)' }]} />
+          </View>
+        ) : null}
         <View style={{ flex: 1, alignItems: 'flex-end', gap: s(2) }}>
           <Txt style={ar(600, 17, 27)}>{title}</Txt>
           <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{detail}</Txt>
@@ -109,42 +115,44 @@ export function RerouteCard({ message, prev, next, oldWait, newWait, oldWaitName
   React.useEffect(() => { ring.value = withDelay(380, withSequence(withTiming(1, { duration: 260 }), withTiming(0, { duration: 700 }))); }, []);
   const ringStyle = useAnimatedStyle(() => ({ opacity: ring.value, transform: [{ scale: 1 + 0.02 * ring.value }] }));
   return (
-    <View style={{ backgroundColor: C.white, borderRadius: s(30), paddingHorizontal: s(20), paddingTop: s(18), paddingBottom: s(12), gap: s(12), boxShadow: `0px ${s(12)}px ${s(40)}px rgba(8,38,36,0.16)` }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: s(12) }}>
-        <View style={{ width: s(42), height: s(42), borderRadius: s(22), backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ backgroundColor: C.white, borderRadius: s(30), paddingHorizontal: s(20), paddingTop: s(18), paddingBottom: s(16), gap: s(12), boxShadow: `0px ${s(12)}px ${s(40)}px rgba(8,38,36,0.16)` }}>
+      {/* Heading (RTL): reroute icon on the right, then the small label over the primary title. */}
+      <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: s(12) }}>
+        <View style={{ width: s(40), height: s(40), borderRadius: s(20), backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="reroute" size={22} color={C.aquaText} />
         </View>
-        <View style={{ alignItems: 'flex-end', gap: s(2) }}>
-          <Txt style={[ar(600, 13, 19), { color: C.aquaText }]}>تحديث على خطتك</Txt>
+        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+          <Txt style={[ar(600, 12, 18), { color: C.aquaText }]}>تحديث على خطتك</Txt>
           <Txt style={ar(700, 22, 31)}>وجدنا لك مسارًا أفضل</Txt>
         </View>
       </View>
-      <Txt style={[ar(400, 17, 29), { color: C.slate }]}>{message}</Txt>
-      <View style={{ backgroundColor: C.canvas, borderRadius: s(18), paddingHorizontal: s(14), paddingVertical: s(12), gap: s(10) }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
-          <View style={{ backgroundColor: C.busyBg, borderRadius: s(10), paddingHorizontal: s(8), justifyContent: 'center' }}>
+      <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{message}</Txt>
+      {/* Old vs new, read right → left: label · route · wait at that stop. The old row is quiet; the new one is highlighted. */}
+      <View style={{ gap: s(6) }}>
+        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: s(6), paddingHorizontal: s(10), minHeight: s(40) }}>
+          <Txt style={[ar(500, 13, 19), { color: C.slate2 }]}>السابق</Txt>
+          <Txt style={[ar(400, 13, 20), { color: C.slate2, flex: 1 }]} numberOfLines={2}>{prev}</Txt>
+          <View style={{ backgroundColor: C.busyBg, borderRadius: s(10), paddingHorizontal: s(8), paddingVertical: s(2) }}>
             <Txt style={[ar(600, 12, 17), { color: C.busyText }]}>{`${oldWaitName} ${oldWait} د`}</Txt>
           </View>
-          <Txt style={[ar(400, 15, 24), { color: C.slate2, flex: 1 }]} numberOfLines={1}>{prev}</Txt>
-          <Txt style={[ar(600, 13, 19), { color: C.slate2 }]}>السابق</Txt>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
-          <View style={{ backgroundColor: C.lowBg, borderRadius: s(10), paddingHorizontal: s(8), justifyContent: 'center' }}>
+        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: s(6), paddingHorizontal: s(10), minHeight: s(46), borderRadius: s(16), backgroundColor: C.mintSoft, borderWidth: s(1), borderColor: 'rgba(32,205,184,0.45)' }}>
+          <Txt style={[ar(700, 13, 19), { color: C.aquaText }]}>الجديد</Txt>
+          <Txt style={[ar(700, 13, 20), { color: C.ink, flex: 1 }]} numberOfLines={2}>{next}</Txt>
+          <View style={{ backgroundColor: C.lowBg, borderRadius: s(10), paddingHorizontal: s(8), paddingVertical: s(2) }}>
             <Txt style={[ar(600, 12, 17), { color: C.lowText }]}>{`${newWaitName} ${newWait} د`}</Txt>
           </View>
-          <Txt style={[ar(600, 15, 22), { flex: 1 }]} numberOfLines={1}>{next}</Txt>
-          <Txt style={[ar(600, 13, 19), { color: C.aquaText }]}>الجديد</Txt>
         </View>
       </View>
       <View>
-        <View style={{ minHeight: s(52), borderRadius: s(18), backgroundColor: C.deep, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s(8) }}>
+        <View style={{ minHeight: s(48), borderRadius: s(18), backgroundColor: C.deep, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s(8) }}>
           <Txt style={[ar(600, 17, 27), { color: C.white }]}>دقيقة انتظار</Txt>
           <Txt style={[sf(700, 22, 28), { color: C.aqua }]}>{`−${saves}`}</Txt>
           <Icon name="wait" size={22} color={C.aqua} />
         </View>
         <Animated.View pointerEvents="none" style={[{ position: 'absolute', left: s(-4), right: s(-4), top: s(-4), bottom: s(-4), borderRadius: s(22), borderWidth: s(2.5), borderColor: '#20CCB8' }, ringStyle]} />
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+      <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: s(8) }}>
         <Icon name="crowd" size={18} color={C.slate} />
         <Txt style={[ar(400, 13, 21), { color: C.slate, flex: 1 }]}>{note}</Txt>
       </View>
