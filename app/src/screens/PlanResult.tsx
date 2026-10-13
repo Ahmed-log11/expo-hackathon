@@ -8,11 +8,11 @@ import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
-import Animated, { SharedValue,
+import Animated, { SharedValue, useAnimatedScrollHandler,
   Easing, FadeIn, FadeInDown, FadeOut, useAnimatedProps, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withTiming,
 } from 'react-native-reanimated';
-import { C, M, VIEW_H, ar, s, sf } from '../theme';
-import { Button, CROWD, CrowdPill, GlassButton, Icon, Txt, levelFor } from '../components/ui';
+import { C, M, VIEW_H, ar, s, sf, useSafe } from '../theme';
+import { Button, CrowdStatus, GlassButton, Icon, Txt, levelFor } from '../components/ui';
 import { useNav } from '../nav/Navigator';
 import { fmtDuration, fmtTime, useStore } from '../data/store';
 import { nameOf, photoOf } from '../data/places';
@@ -111,6 +111,16 @@ const MINI = { x: 80, y: -42, k: 241 / 402 };
 
 export function PlanReady() {
   const nav = useNav();
+  const safe = useSafe();
+  const [footerH, setFooterH] = useState(s(130));
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => { scrollY.value = e.contentOffset.y; });
+  // The bar covers the status bar and the round controls (48) with a little room under them.
+  const barH = safe.top(60) + s(48) + s(10);
+  const sheetTop = s(342);
+  const topBar = useAnimatedStyle(() => ({
+    opacity: Math.min(1, Math.max(0, (scrollY.value - (sheetTop - barH - s(40))) / s(40))),
+  }));
   const { route, crowd, plan } = useStore();
   const stops = route?.stops ?? [];
   const ids = stops.map((st) => st.pavilion_id);
@@ -136,7 +146,7 @@ export function PlanReady() {
   return (
     <View style={{ flex: 1, backgroundColor: C.mapBg }}>
       <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={{ paddingBottom: s(140) }} showsVerticalScrollIndicator={false} bounces>
+      <Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16} showsVerticalScrollIndicator={false} bounces>
         {/* mini map */}
         <View style={{ height: s(342), overflow: 'hidden' }}>
           <View style={{ position: 'absolute', left: s(MINI.x), top: s(MINI.y), width: s(241), height: s(524) }}>
@@ -166,7 +176,7 @@ export function PlanReady() {
         {/* plan sheet */}
         <View style={{
           marginTop: 0, backgroundColor: C.canvas, borderTopLeftRadius: s(32), borderTopRightRadius: s(32),
-          paddingHorizontal: s(16), paddingTop: s(24), gap: s(20), minHeight: s(VIEW_H - 342),
+          paddingHorizontal: s(16), paddingTop: s(24), paddingBottom: footerH + s(8), gap: s(20), minHeight: s(VIEW_H - 342),
           boxShadow: `0px ${s(12)}px ${s(40)}px rgba(8,38,36,0.16)`,
         }}>
           <View style={{ gap: s(8), alignItems: 'flex-end' }}>
@@ -210,8 +220,12 @@ export function PlanReady() {
                 <Icon name="wait" size={24} color={C.aqua} />
               </View>
               <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                <Txt style={[ar(400, 15, 24), { color: C.deep }]}>{saved > 0 ? 'قد توفر لك خطتك نحو' : 'ترتيبك الحالي هو الأقل انتظارًا'}</Txt>
-                <Txt style={[ar(700, 22, 31), { color: C.deep }]}>{saved > 0 ? `${fmtDuration(saved)} من الانتظار` : `${fmtDuration(wait)} انتظار متوقع`}</Txt>
+                <Txt style={[ar(400, 13, 21), { color: 'rgba(7,60,58,0.78)' }]}>{saved > 0 ? 'قد توفر لك خطتك نحو' : 'ترتيبك الحالي هو الأقل انتظارًا'}</Txt>
+                {/* The impact number is the memorable part; its unit phrase stays smaller on the same line. */}
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: s(6) }}>
+                  <Txt style={[ar(600, 15, 22), { color: C.deep }]}>{saved > 0 ? 'من الانتظار' : 'انتظار متوقع'}</Txt>
+                  <Txt style={[ar(700, 30, 40), { color: C.deep }]}>{fmtDuration(saved > 0 ? saved : wait)}</Txt>
+                </View>
               </View>
             </View>
             <View style={{ gap: s(8) }}>
@@ -232,52 +246,75 @@ export function PlanReady() {
           <View>
             {stops.map((st, i) => {
               const w = crowd[st.pavilion_id] != null && i === 0 ? crowd[st.pavilion_id] : st.wait_min;
-              const lvl = levelFor(w);
-              const last = i === stops.length - 1;
               return (
-                <Animated.View key={st.pavilion_id} entering={FadeInDown.delay(200 + i * 80).duration(M.sheet)} style={{ flexDirection: 'row', gap: s(12), minHeight: s(83) }}>
-                  <Image source={photoOf(st.pavilion_id)} style={{ width: s(52), height: s(52), borderRadius: s(14) }} contentFit="cover" />
-                  <View style={{ flex: 1, paddingTop: s(2), gap: s(6) }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: s(8) }}>
-                      <Txt style={[ar(600, 15, 22), { color: C.slate }]}>{fmtTime(st.arrive_at)}</Txt>
-                      <Txt style={ar(600, 17, 27)} numberOfLines={1}>{nameOf(st.pavilion_id)}</Txt>
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: s(8) }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(3) }}>
-                        <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{`${st.walk_from_prev_min} د مشي`}</Txt>
-                        <Icon name="walk" size={14} color={C.slate} />
-                      </View>
-                      <CrowdPill level={lvl} label={`${CROWD[lvl].word} · ${w} د`} />
-                    </View>
-                  </View>
-                  <View style={{ width: s(30), alignItems: 'center' }}>
-                    <View style={{
-                      width: s(30), height: s(30), borderRadius: s(15), alignItems: 'center', justifyContent: 'center',
-                      backgroundColor: i === 0 ? C.aqua : C.white, borderWidth: s(i === 0 ? 3 : 2), borderColor: i === 0 ? C.white : C.deep,
-                      boxShadow: `0px ${s(2)}px ${s(8)}px rgba(8,38,36,0.06), 0px ${s(8)}px ${s(24)}px rgba(8,38,36,0.06)`,
-                    }}>
-                      <Txt style={[sf(700, 13, 19), { color: i === 0 ? C.ink : C.deep, textAlign: 'center' }]}>{String(i + 1)}</Txt>
-                    </View>
-                    {!last && <View style={{ width: s(3), flex: 1, borderRadius: s(2), backgroundColor: 'rgba(32,205,184,0.55)' }} />}
-                  </View>
+                <Animated.View key={st.pavilion_id} entering={FadeInDown.delay(200 + i * 80).duration(M.sheet)}>
+                  <ItineraryRow n={i + 1} first={i === 0} last={i === stops.length - 1} id={st.pavilion_id} arrive={fmtTime(st.arrive_at)} walk={st.walk_from_prev_min} wait={w} />
                 </Animated.View>
               );
             })}
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
+
+      {/* Top bar: fades in as the sheet reaches the controls, so the title tucks under it instead of the status bar. */}
+      <Animated.View pointerEvents="none" style={[{ position: 'absolute', left: 0, right: 0, top: 0 }, topBar]}>
+        <View style={{ height: barH, backgroundColor: C.canvas }} />
+        <LinearGradient colors={[C.canvas, 'rgba(243,248,246,0)']} style={{ height: s(16) }} />
+      </Animated.View>
 
       {/* floating controls */}
-      <GlassButton icon="chevron-right" style={{ position: 'absolute', right: s(16), top: s(60) }} onPress={() => nav.reset('Home', undefined, 'push')} />
-      <GlassButton icon="heart" style={{ position: 'absolute', left: s(16), top: s(60) }} />
+      <GlassButton icon="chevron-right" style={{ position: 'absolute', right: s(16), top: safe.top(60) }} onPress={() => nav.reset('Home', undefined, 'push')} />
+      <GlassButton icon="heart" style={{ position: 'absolute', left: s(16), top: safe.top(60) }} />
       <LinearGradient
         colors={['rgba(243,248,246,0)', C.canvas]}
         locations={[0, 0.3]}
         pointerEvents="box-none"
-        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: s(16), paddingTop: s(28), paddingBottom: s(46) }}
+        onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}
+        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: s(16), paddingTop: s(28), paddingBottom: safe.ctaBottom }}
       >
         <Button label="ابدأ الرحلة" icon="locate" variant="accent" disabled={!stops.length} onPress={() => nav.push('Journey', undefined, 'dissolve')} />
       </LinearGradient>
+    </View>
+  );
+}
+
+/**
+ * One itinerary stop. Every row uses the same grid (RTL, right → left):
+ *   node column 30 · gap 12 · text column (flex) · gap 12 · photo 56
+ * Row height is fixed, so nodes, photos and text lines sit on the same rhythm from row to row.
+ */
+const ROW_H = 84;
+const NODE = 30;
+const PHOTO = 56;
+function ItineraryRow({ n, first, last, id, arrive, walk, wait }: {
+  n: number; first: boolean; last: boolean; id: string; arrive: string; walk: number; wait: number;
+}) {
+  return (
+    <View style={{ flexDirection: 'row', gap: s(12), height: s(ROW_H) }}>
+      <Image source={photoOf(id)} style={{ width: s(PHOTO), height: s(PHOTO), borderRadius: s(14) }} contentFit="cover" />
+      <View style={{ flex: 1, height: s(PHOTO), justifyContent: 'space-between' }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: s(8), height: s(28) }}>
+          <Txt style={[ar(600, 15, 22), { color: C.slate }]}>{arrive}</Txt>
+          <Txt style={[ar(600, 17, 27), { flexShrink: 1 }]} numberOfLines={1}>{nameOf(id)}</Txt>
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: s(8), height: s(26) }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(3) }}>
+            <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{`${walk} د مشي`}</Txt>
+            <Icon name="walk" size={14} color={C.slate} />
+          </View>
+          <CrowdStatus wait={wait} level={levelFor(wait)} />
+        </View>
+      </View>
+      <View style={{ width: s(NODE), alignItems: 'center' }}>
+        <View style={{
+          width: s(NODE), height: s(NODE), borderRadius: s(NODE / 2), alignItems: 'center', justifyContent: 'center', marginTop: s(-1),
+          backgroundColor: first ? C.aqua : C.white, borderWidth: s(first ? 3 : 2), borderColor: first ? C.white : C.deep,
+          boxShadow: `0px ${s(2)}px ${s(8)}px rgba(8,38,36,0.06), 0px ${s(8)}px ${s(24)}px rgba(8,38,36,0.06)`,
+        }}>
+          <Txt style={[sf(700, 13, 19), { color: first ? C.ink : C.deep, textAlign: 'center' }]}>{String(n)}</Txt>
+        </View>
+        {!last && <View style={{ width: s(3), flex: 1, borderRadius: s(2), backgroundColor: 'rgba(32,205,184,0.55)' }} />}
+      </View>
     </View>
   );
 }

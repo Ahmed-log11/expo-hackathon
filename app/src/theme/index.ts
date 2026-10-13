@@ -3,8 +3,9 @@
  * All sizes are in design units: the design is drawn on a 402 x 874 pt iPhone frame.
  * `s()` turns a design unit into screen points so the layout keeps its proportions on every iPhone.
  */
-import { Dimensions, TextStyle } from 'react-native';
+import { Dimensions, Platform, TextStyle } from 'react-native';
 import { Easing } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -144,3 +145,33 @@ export const M = {
 };
 
 export const SCREEN = { W: SCREEN_W, H: SCREEN_H };
+
+/**
+ * Safe-area layout. Design offsets were drawn on the 402 x 874 frame; on a device they are kept unless the
+ * status bar / Dynamic Island or the Home Indicator needs more room. The web preview has no insets, so it
+ * uses the design frame's (iPhone 16 Pro: 62 top, 34 bottom).
+ */
+export const TAB_BAR_H = 60;
+export function useSafe() {
+  const i = useSafeAreaInsets();
+  const web = Platform.OS === 'web';
+  const insetTop = i.top || (web ? s(62) : 0);
+  const insetBottom = i.bottom || (web ? s(34) : 0);
+  /** Fixed bottom CTA: 12 above the Home Indicator (design: 46 from the frame bottom), 24 on phones without one. */
+  const ctaBottom = Math.max(insetBottom + s(12), s(24));
+  /** Floating map cards (Next Stop, Reroute): their CTA has its own inner padding. */
+  const cardBottom = Math.max(insetBottom + s(6), s(16));
+  /** The floating tab bar: a little lower, still clear of the Home Indicator. */
+  const floatBottom = Math.max(insetBottom - s(4), s(16));
+  return {
+    insetTop,
+    insetBottom,
+    /** A top offset from the design, never above the bottom of the status bar. */
+    top: (design: number) => Math.max(s(design), insetTop),
+    ctaBottom,
+    cardBottom,
+    floatBottom,
+    /** Scroll padding that clears the tab bar and the space under it. */
+    tabClear: floatBottom + s(TAB_BAR_H) + s(16),
+  };
+}

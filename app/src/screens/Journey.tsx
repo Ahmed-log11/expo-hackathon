@@ -11,10 +11,10 @@ import { StatusBar } from 'expo-status-bar';
 import Animated, {
   FadeIn, FadeInDown, FadeOut, FadeOutDown, LinearTransition, SlideInDown, SlideOutDown, useAnimatedStyle, useSharedValue, withTiming,
 } from 'react-native-reanimated';
-import { C, M, VIEW_H, s } from '../theme';
-import { CROWD, GlassButton, levelFor } from '../components/ui';
+import { C, K, M, VIEW_H, s, useSafe } from '../theme';
+import { GlassButton, crowdText, levelFor } from '../components/ui';
 import { JourneyCapsule, LiveAlert, NavInstruction, NextStopCard, RerouteCard, Toast } from '../components/journey';
-import { ActiveRoute, CurrentLocation, HeatSpot, MapPlane, NextMarker, PavilionMarker, PlainRoute, StopDot } from '../map/MapView';
+import { ActiveRoute, CurrentLocation, HeatSpot, MapPlane, NextMarker, PavilionMarker, PlainRoute, Rect, StopDot, labelRect, overlaps } from '../map/MapView';
 import { Pt, placePoint, pointAt, shadedRuns, slice, walkBetween, walkFromPoint } from '../map/route';
 import { useNav } from '../nav/Navigator';
 import { backend } from '../data/api';
@@ -30,6 +30,11 @@ const layout = LinearTransition.duration(M.standard).easing(M.flowOut);
 /** Where the visitor is along the current walk, per state (the prototype's positions). */
 const T_VISITOR: Partial<Record<Phase, number>> = { active: 0.08, guidance: 0.18, guidance2: 0.42, rising: 0.42, searching: 0.42, approach: 0.93 };
 
+/** Top of the map buttons column per state (design units). */
+function controlsTopOf(phase: Phase) {
+  return phase === 'active' ? 124 : phase === 'newRoute' || phase === 'approach' ? 330 : 300;
+}
+
 function minutesAr(n: number) {
   if (n <= 1) return 'دقيقة';
   if (n === 2) return 'دقيقتين';
@@ -39,6 +44,8 @@ function minutesAr(n: number) {
 
 export default function Journey() {
   const nav = useNav();
+  const safe = useSafe();
+  const [topH, setTopH] = useState(0);                       // measured height of the top capsule / instruction card
   const { route, done, crowd, alert, offer, accept, decline, triggerCrowd, mode, clearAlert } = useStore();
   const [phase, setPhase] = useState<Phase>('active');
   const [toast, setToast] = useState<string>();
@@ -72,12 +79,14 @@ export default function Journey() {
   // ---------- camera: frame the visitor and the destination between the top UI and the card ----------
   const camY = useSharedValue(-150);
   const vx = useSharedValue(visitor.x), vy = useSharedValue(visitor.y), va = useSharedValue(-90);
-  useEffect(() => {
+  const cam = useMemo(() => {
     const dest = REROUTE.includes(phase) && altId ? placePoint(altId) : next ? placePoint(next.pavilion_id) : visitor;
     const band = REROUTE.includes(phase) ? [40, 390] : phase === 'active' ? [110, 500] : [190, 590];
     const top = Math.min(dest.y - 80, visitor.y - 40), bottom = Math.max(dest.y, visitor.y + 40);
-    let cam = (band[0] + band[1]) / 2 - (top + bottom) / 2;
-    cam = Math.max(-340, Math.min(40, cam));
+    const c = (band[0] + band[1]) / 2 - (top + bottom) / 2;
+    return Math.max(-340, Math.min(40, c));
+  }, [phase, leg, altId]);
+  useEffect(() => {
     const dur = phase === 'drawing' ? 550 : phase === 'newRoute' ? 420 : 450;
     camY.value = withTiming(cam, { duration: dur, easing: M.easeInOut });
     const angle = leg ? (pointAt(leg, Math.min(0.99, tVis + 0.02)).angle * 180) / Math.PI : -90;
@@ -127,12 +136,23 @@ export default function Journey() {
     if (phase === 'guidance') setPhase('guidance2');
     else if (phase === 'guidance2') triggerCrowd();           // demo control: the next stop's queue jumps
   };
+  const accepting = useRef(false);
   const onAccept = async () => {
-    if (phase !== 'offer') return;
+    if (phase !== 'offer' || accepting.current) return;
+    accepting.current = true;
     const here = visitor;
     const walked = leg ? slice(leg, 0, tVis) : [];
-    setPhase('confirmed');
-    await accept();
+    const result = await accept();
+    accepting.current = false;
+    if (result !== 'ok') {
+      // No false success: keep the current destination and route, and say why.
+      clearAlert();
+      setSnap(undefined);
+      setPhase('guidance2');
+      flash(result === 'expired' ? 'انتهت صلاحية الاقتراح، تم الاحتفاظ بمسارك الحالي' : 'تعذّر تحديث المسار، تم الاحتفاظ بمسارك الحالي');
+      return;
+    }
+    setPhase('confirmed');   // only after the server accepted
     setTimeout(() => {
       setCompleted(walked);
       setAnchor(here);
@@ -186,36 +206,59 @@ export default function Journey() {
   }
 
   // Markers: completed stops, the destination (dark), the rest of today's stops (light).
+  // Label priority: 1 destination (or the suggested stop) · 2 the stop the reroute moves away from · 3 the next stop
+  // after it · 4 the rest. A lower-priority label that would collide with a higher one, sit under the top card or the
+  // bottom card, or cover the map buttons keeps only its node. Boxes are in map units at the camera's target.
+  // During the reroute offer nothing sits at the top, so labels may go up to just under the status bar.
+  const screenTop = (inReroute ? safe.insetTop + s(8) : topH ? (phase === 'active' ? safe.top(54) : safe.top(56)) + topH : safe.top(56) + s(100)) / K + 6;
+  const screenBottom = VIEW_H - (safe.cardBottom + (cardH || s(250))) / K - 6;
+  const controls: Rect = { x0: 0, x1: 72, y0: s(controlsTopOf(phase)) / K - cam, y1: s(controlsTopOf(phase)) / K + 166 - cam };
+  const placed: Rect[] = [];
+  const fits = (id: string, kind: 'next' | 'pavilion', always = false) => {
+    const r = labelRect(placePoint(id), kind);
+    const ok = always || (r.y0 + cam >= screenTop && r.y1 + cam <= screenBottom && !overlaps(r, controls) && !placed.some((q) => overlaps(r, q)));
+    if (ok) placed.push(r);
+    return ok;
+  };
   const markers: React.ReactNode[] = [];
   done.forEach((d, i) => markers.push(<StopDot key={`done-${d.id}-${i}`} at={placePoint(d.id)} state="done" />));
-  stops.forEach((st, i) => {
+  const focusMarkerId = inReroute && altId ? altId : next.pavilion_id;
+  // The destination label is never hidden: with no room above its node (long walk, camera at its limit) it hangs below
+  // the node instead; if it would sit under the map buttons, it slides right of them.
+  const focusBelow = labelRect(placePoint(focusMarkerId), 'next').y0 + cam < screenTop;
+  const focusRect = labelRect(placePoint(focusMarkerId), 'next', focusBelow);
+  const focusMinLeft = !inReroute && overlaps(focusRect, controls, 0) ? controls.x1 + 6 : undefined;
+  placed.push(focusMinLeft != null ? { ...focusRect, x0: focusMinLeft, x1: focusMinLeft + (focusRect.x1 - focusRect.x0) } : focusRect);
+  const ordered = stops
+    .map((st, i) => ({ st, i }))
+    .filter(({ st }) => st.pavilion_id !== focusMarkerId)
+    .sort((a, b) => (b.st.pavilion_id === crowdedId ? 1 : 0) - (a.st.pavilion_id === crowdedId ? 1 : 0) || a.i - b.i);
+  // Dot-only markers are drawn first so a hidden label's node never sits on top of a shown label.
+  const dotsOnly: React.ReactNode[] = [], labelled: React.ReactNode[] = [];
+  ordered.forEach(({ st, i }) => {
     const id = st.pavilion_id;
     const w = waitOf(id, st.wait_min);
-    if (inReroute && id === altId) return;
-    if (inReroute && id === crowdedId) {
-      const tw = snap?.trigger?.wait_min ?? w;
-      markers.push(<PavilionMarker key={`mark-${id}`} at={placePoint(id)} name={nameOf(id)} meta={`${CROWD[levelFor(tw)].word} · ${tw} د`} level={levelFor(tw)} />);
-      return;
-    }
-    if (i === 0) {
-      const rising = (phase === 'rising' || phase === 'searching') && alert?.pavilion_id === id;
-      const meta = rising ? `يرتفع · ${alert!.wait_min} د` : `${CROWD[levelFor(w)].word} · ${w} د`;
-      markers.push(<NextMarker key={`next-${id}`} at={placePoint(id)} name={nameOf(id)} meta={meta} level={rising ? 'busy' : levelFor(w)} />);
-    } else {
-      const meta = anchor && i === 1 ? `المحطة ${stopNo + 1} · ${fmtTime(st.arrive_at)}` : `${w} د`;
-      markers.push(<PavilionMarker key={`mark-${id}`} at={placePoint(id)} name={nameOf(id)} meta={meta} level={levelFor(w)} />);
-    }
+    const tw = inReroute && id === crowdedId ? snap?.trigger?.wait_min ?? w : w;
+    const meta = !(inReroute && id === crowdedId) && anchor && i === 1 ? `المحطة ${stopNo + 1} · ${fmtTime(st.arrive_at)}` : crowdText.compact(tw);
+    const shown = fits(id, 'pavilion');
+    (shown ? labelled : dotsOnly).push(<PavilionMarker key={`mark-${id}`} at={placePoint(id)} name={nameOf(id)} meta={meta} level={levelFor(tw)} labelHidden={!shown} />);
   });
+  markers.push(...dotsOnly, ...labelled);
   if (inReroute && altId) {
     const aw = snap?.new?.[0]?.wait_min ?? 10;
-    markers.push(<NextMarker key={`alt-${altId}`} at={placePoint(altId)} name={nameOf(altId)} meta={`${CROWD[levelFor(aw)].word} · ${aw} د`} level={levelFor(aw)} />);
+    markers.push(<NextMarker key={`alt-${altId}`} at={placePoint(altId)} name={nameOf(altId)} meta={crowdText.compact(aw)} level={levelFor(aw)} below={focusBelow} />);
+  } else {
+    const w = waitOf(next.pavilion_id, next.wait_min);
+    const risingHere = (phase === 'rising' || phase === 'searching') && alert?.pavilion_id === next.pavilion_id;
+    const meta = risingHere ? `يرتفع · ${alert!.wait_min} د` : crowdText.compact(w);
+    markers.push(<NextMarker key={`next-${next.pavilion_id}`} at={placePoint(next.pavilion_id)} name={nameOf(next.pavilion_id)} meta={meta} level={risingHere ? 'busy' : levelFor(w)} minLeft={focusMinLeft} below={focusBelow} />);
   }
 
   const heatIds = [...new Set([...stops.slice(0, 3).map((x) => x.pavilion_id), ...(altId ? [altId] : [])])];
   const showInstruction = GUIDING.includes(phase) || phase === 'newRoute' || phase === 'approach';
-  const controlsTop = phase === 'active' ? 124 : phase === 'newRoute' || phase === 'approach' ? 330 : 300;
+  const controlsTop = controlsTopOf(phase);
   // Pills that belong just above the bottom card follow its real height (Arabic lines make it grow).
-  const aboveCard = s(40) + (cardH || s(250)) + s(12);
+  const aboveCard = safe.cardBottom + (cardH || s(250)) + s(12);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.mapBg }}>
@@ -256,20 +299,20 @@ export default function Journey() {
 
       {/* top: end journey + capsule (active) or the instruction card (guiding) */}
       {phase === 'active' && (
-        <Animated.View entering={FadeIn.duration(M.standard)} exiting={FadeOut.duration(M.fast)} style={{ position: 'absolute', top: s(54), left: s(16), right: s(16), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Animated.View entering={FadeIn.duration(M.standard)} exiting={FadeOut.duration(M.fast)} onLayout={(e) => setTopH(e.nativeEvent.layout.height)} style={{ position: 'absolute', top: safe.top(54), left: s(16), right: s(16), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <GlassButton icon="close" onPress={() => nav.push('Summary', undefined, 'dissolve')} />
           <JourneyCapsule label={`المحطة ${stopNo} من ${total}`} total={total} current={stopNo} />
         </Animated.View>
       )}
       {showInstruction && (
-        <Animated.View entering={FadeInDown.duration(M.sheet).easing(M.flowOut)} exiting={FadeOut.duration(M.fast)} layout={layout} style={{ position: 'absolute', top: s(56), left: s(16), right: s(16) }}>
+        <Animated.View entering={FadeInDown.duration(M.sheet).easing(M.flowOut)} exiting={FadeOut.duration(M.fast)} layout={layout} onLayout={(e) => setTopH(e.nativeEvent.layout.height)} style={{ position: 'absolute', top: safe.top(56), left: s(16), right: s(16) }}>
           <NavInstruction title={instruction.title} detail={instruction.detail} photo={instruction.photo} onPress={tapInstruction} />
         </Animated.View>
       )}
 
       {/* map controls */}
       {!inReroute && (
-        <Animated.View layout={layout} style={{ position: 'absolute', left: s(16), top: s(controlsTop), gap: s(10) }}>
+        <Animated.View layout={layout} style={{ position: 'absolute', left: s(16), top: Math.max(s(controlsTop), safe.top(56) + (topH || s(100)) + s(12)), gap: s(10) }}>
           <GlassButton icon="locate" />
           <GlassButton icon="crowd" />
           <GlassButton icon="shade" selected />
@@ -292,7 +335,7 @@ export default function Journey() {
 
       {/* toast */}
       {toast && (
-        <Animated.View entering={FadeInDown.duration(M.standard)} exiting={FadeOut.duration(M.standard)} style={[{ position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 10 }, phase === 'newRoute' ? { bottom: aboveCard + s(56) } : { top: s(160) }]}>
+        <Animated.View entering={FadeInDown.duration(M.standard)} exiting={FadeOut.duration(M.standard)} style={[{ position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 10 }, phase === 'newRoute' ? { bottom: aboveCard + s(56) } : { top: safe.top(56) + s(104) }]}>
           <Toast text={toast} />
         </Animated.View>
       )}
@@ -304,7 +347,7 @@ export default function Journey() {
           entering={FadeInDown.duration(M.sheet).easing(M.continuity)}
           exiting={FadeOutDown.duration(M.fast)}
           onLayout={(e) => setCardH(e.nativeEvent.layout.height)}
-          style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(40) }}
+          style={{ position: 'absolute', left: s(16), right: s(16), bottom: safe.cardBottom }}
         >
           <NextStopCard
             compact={phase !== 'active'}
@@ -327,11 +370,11 @@ export default function Journey() {
 
       {/* reroute card */}
       {(phase === 'offer' || phase === 'confirmed') && snap && (
-        <Animated.View entering={SlideInDown.duration(380).easing(M.continuity)} exiting={SlideOutDown.duration(M.sheet)} style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(40) }}>
+        <Animated.View entering={SlideInDown.duration(380).easing(M.continuity)} exiting={SlideOutDown.duration(M.sheet)} style={{ position: 'absolute', left: s(16), right: s(16), bottom: safe.cardBottom }}>
           <RerouteCard
             message={`ارتفع الازدحام المتوقع في ${nameOf(crowdedId!)}. زيارة ${shortName(altId!)} أولًا قد توفر لك ${snap.saves_min} دقيقة.`}
-            prev={[prev, ...snap.old.map((x) => x.pavilion_id)].slice(0, 3).map(shortName).join(' ← ')}
-            next={[prev, ...snap.new.map((x) => x.pavilion_id)].slice(0, 3).map(shortName).join(' ← ')}
+            prev={[prev, ...snap.old.map((x) => x.pavilion_id)].map(shortName).filter(Boolean).slice(0, 3).join(' ← ')}
+            next={[prev, ...snap.new.map((x) => x.pavilion_id)].map(shortName).filter(Boolean).slice(0, 3).join(' ← ')}
             oldWait={snap.trigger?.wait_min ?? snap.old[0]?.wait_min ?? 0}
             oldWaitName={shortName(crowdedId!)}
             newWait={snap.new[0]?.wait_min ?? 0}

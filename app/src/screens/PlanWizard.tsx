@@ -8,8 +8,8 @@ import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeOut, LinearTransition, useAnimatedStyle, withTiming } from 'react-native-reanimated';
-import { C, M, ar, s, sf } from '../theme';
-import { Button, Chip, CrowdPill, Glass, Icon, Pressy, RoundButton, StepProgress, Txt, levelFor, CROWD } from '../components/ui';
+import { C, M, ar, s, sf, useSafe } from '../theme';
+import { Button, Chip, CrowdStatus, Glass, Icon, Pressy, RoundButton, RtlScrollRow, StepProgress, Txt, levelFor } from '../components/ui';
 import { useNav } from '../nav/Navigator';
 import { AR_DAYS, AR_MONTHS, dayLabel, fmtTime, useStore } from '../data/store';
 import { PAVILION_IDS, PLACES, categoryOf, nameOf, photoOf, walkMinutes } from '../data/places';
@@ -19,12 +19,19 @@ import type { IconName } from '../assets/svg';
 const layout = LinearTransition.duration(M.standard).easing(M.flowOut);
 
 // ---------- shared frame ----------
+const NAV_H = 46;
+
 function WizardFrame({ step, title, subtitle, children, footer, scroll }: {
   step: number; title: string; subtitle: string; children: React.ReactNode; footer: React.ReactNode; scroll?: boolean;
 }) {
   const nav = useNav();
+  const safe = useSafe();
+  // The nav bar (step · progress · back) stays put under the status bar; content scrolls beneath it.
+  const navTop = safe.top(56);
+  const barBottom = navTop + s(NAV_H) + s(6);
+  const [footerH, setFooterH] = useState(s(130));
   const header = (
-    <View style={{ marginTop: s(116), paddingHorizontal: s(16), gap: s(6) }}>
+    <View style={{ marginTop: Math.max(s(116), barBottom + s(14)), paddingHorizontal: s(16), gap: s(6) }}>
       <Txt style={ar(700, 34, 46)}>{title}</Txt>
       <Txt style={[ar(400, 17, 29), { color: C.slate }]}>{subtitle}</Txt>
     </View>
@@ -33,7 +40,7 @@ function WizardFrame({ step, title, subtitle, children, footer, scroll }: {
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <StatusBar style="dark" />
       {scroll ? (
-        <ScrollView contentContainerStyle={{ paddingBottom: s(150) }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ paddingBottom: footerH + s(16) }} scrollIndicatorInsets={{ top: barBottom, bottom: footerH }} showsVerticalScrollIndicator={false}>
           {header}
           {children}
         </ScrollView>
@@ -43,18 +50,23 @@ function WizardFrame({ step, title, subtitle, children, footer, scroll }: {
           {children}
         </View>
       )}
-      {/* Nav bar: step label · progress · back */}
-      <View style={{ position: 'absolute', top: s(56), left: s(16), right: s(16), height: s(46), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Txt style={[sf(400, 13, 19), { color: C.slate, width: s(44), textAlign: 'left' }]}>{`${step}/3`}</Txt>
-        <StepProgress step={step} total={3} />
-        <RoundButton icon="chevron-right" onPress={() => nav.back()} />
+      {/* Sticky top bar: canvas behind the status bar and the nav row, then a short fade so scrolled content tucks under it. */}
+      <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, top: 0 }}>
+        <View pointerEvents="none" style={{ height: barBottom, backgroundColor: C.canvas }} />
+        <LinearGradient pointerEvents="none" colors={[C.canvas, 'rgba(243,248,246,0)']} style={{ height: s(14) }} />
+        <View style={{ position: 'absolute', top: navTop, left: s(16), right: s(16), height: s(NAV_H), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Txt style={[sf(400, 13, 19), { color: C.slate, width: s(44), textAlign: 'left' }]}>{`${step}/3`}</Txt>
+          <StepProgress step={step} total={3} />
+          <RoundButton icon="chevron-right" onPress={() => nav.back()} />
+        </View>
       </View>
       {/* Bottom bar fades the content out behind the button */}
       <LinearGradient
         colors={['rgba(243,248,246,0)', C.canvas]}
         locations={[0, 0.3]}
         pointerEvents="box-none"
-        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: s(16), paddingTop: s(28), paddingBottom: s(46), gap: s(10), alignItems: 'center' }}
+        onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}
+        style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: s(16), paddingTop: s(28), paddingBottom: safe.ctaBottom, gap: s(10), alignItems: 'center' }}
       >
         {footer}
       </LinearGradient>
@@ -128,15 +140,15 @@ export function PlanTime() {
               <Animated.View key={hours} entering={FadeIn.duration(M.standard)}>
                 <Txt style={[ar(700, 28, 38), { color: C.white }]}>{`${hours} ساعات متاحة`}</Txt>
               </Animated.View>
-              <Txt style={[ar(400, 15, 24), { color: C.mint }]}>{`من ${fmtTime(plan.start)} حتى ${fmtTime(plan.end)}`}</Txt>
+              <Txt style={[ar(400, 15, 24), { color: 'rgba(207,245,237,0.72)' }]}>{`من ${fmtTime(plan.start)} حتى ${fmtTime(plan.end)}`}</Txt>
             </View>
           </View>
           <DayTrack hours={hours} />
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Txt style={[ar(500, 12, 18), { color: C.mint }]}>{fmtTime(plan.end)}</Txt>
-            <Txt style={[ar(500, 12, 18), { color: C.mint }]}>{fmtTime(plan.start)}</Txt>
+            <Txt style={[ar(400, 12, 18), { color: 'rgba(255,255,255,0.56)' }]}>{fmtTime(plan.end)}</Txt>
+            <Txt style={[ar(400, 12, 18), { color: 'rgba(255,255,255,0.56)' }]}>{fmtTime(plan.start)}</Txt>
           </View>
-          <Txt style={[ar(400, 13, 21), { color: 'rgba(255,255,255,0.85)' }]}>{`مناسب لـ ${stops} محطات مع وقت للطعام والراحة.`}</Txt>
+          <Txt style={[ar(400, 13, 21), { color: 'rgba(255,255,255,0.66)' }]}>{`مناسب لـ ${stops} محطات مع وقت للطعام والراحة.`}</Txt>
         </View>
       </View>
     </WizardFrame>
@@ -214,7 +226,7 @@ function DayTrack({ hours }: { hours: number }) {
 
 // ---------- 2/4 Interests ----------
 const INTERESTS: { key: string; label: string; icon: IconName; photo: keyof typeof PHOTOS; iconColor?: string }[] = [
-  { key: 'technology', label: 'التقنية', icon: 'tech', photo: 'hero', iconColor: C.ink },
+  { key: 'technology', label: 'التقنية', icon: 'tech', photo: 'hero' },
   { key: 'culture', label: 'الثقافة', icon: 'culture', photo: 'culture' },
   { key: 'planet', label: 'الاستدامة', icon: 'leaf', photo: 'sustainability' },
   { key: 'humanity', label: 'الإنسانية', icon: 'family', photo: 'interactive' },
@@ -233,12 +245,14 @@ export function PlanInterests() {
       scroll
       title="وش تحب تكتشف؟"
       subtitle="اختر اهتمامًا أو أكثر، ونرتّب يومك حولها."
-      footer={<>
-        <Txt style={[ar(400, 13, 21), { color: C.slate, textAlign: 'center' }]}>{n === 0 ? 'اختر اهتمامًا واحدًا على الأقل' : n === 1 ? 'اهتمام واحد مختار' : n === 2 ? 'اهتمامان مختاران' : `${n} اهتمامات مختارة`}</Txt>
-        <Button label="التالي" disabled={n === 0} style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanMustVisit')} />
-      </>}
+      footer={<Button label="التالي" disabled={n === 0} style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanMustVisit')} />}
     >
       <View style={{ marginTop: s(20), paddingHorizontal: s(16), gap: s(16) }}>
+        {/* Selection count sits right above the cards it counts. */}
+        <View style={{ minHeight: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: s(6), marginTop: s(-8), marginBottom: s(-4) }}>
+          <Txt style={[ar(600, 13, 19), { color: n === 0 ? C.slate : C.aquaText }]}>{n === 0 ? 'اختر اهتمامًا واحدًا على الأقل' : n === 1 ? 'اهتمام واحد مختار' : n === 2 ? 'اهتمامان مختاران' : `${n} اهتمامات مختارة`}</Txt>
+          {n > 0 && <View style={{ width: s(18), height: s(18), borderRadius: s(9), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}><Icon name="check" size={12} color={C.ink} /></View>}
+        </View>
         {rows.map((row, i) => (
           // Row order in Figma is left → right; the first interest sits on the right (RTL).
           <View key={i} style={{ flexDirection: 'row-reverse', gap: s(16) }}>
@@ -297,7 +311,6 @@ export function PlanMustVisit() {
   const { plan, setPlan, crowd } = useStore();
   const [filter, setFilter] = useState('mine');
   const [seeded, setSeeded] = useState(0);
-  const chipsRef = useRef<ScrollView>(null);
   const wanted = useMemo(() => new Set(plan.tags.flatMap((t) => TAG_FOR_INTEREST[t] ?? [])), [plan.tags]);
   const matches = (id: string) => (PLACES[id].tags ?? []).some((t) => wanted.has(t));
   // New interests: start with the most popular matching pavilions already picked.
@@ -344,15 +357,9 @@ export function PlanMustVisit() {
           <Icon name="search" size={22} color={C.slate} />
         </View>
         {/* First chip sits on the right; the row scrolls toward the left (RTL). */}
-        <ScrollView
-          ref={chipsRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          onContentSizeChange={() => chipsRef.current?.scrollToEnd({ animated: false })}
-          contentContainerStyle={{ paddingHorizontal: s(16), gap: s(8), flexDirection: 'row-reverse' }}
-        >
+        <RtlScrollRow>
           {FILTERS.map((f) => <Chip key={f.key} label={f.label} selected={filter === f.key} onPress={() => setFilter(f.key)} />)}
-        </ScrollView>
+        </RtlScrollRow>
         <View style={{ marginHorizontal: s(16), minHeight: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Txt style={[ar(600, 13, 19), { color: C.aquaText }]}>{`${plan.mustVisit.length} مختارة`}</Txt>
           <Txt style={ar(600, 17, 27)}>اقتراحات حسب اهتماماتك</Txt>
@@ -372,18 +379,19 @@ function PavilionPick({ id, selected, wait, onPress }: { id: string; selected: b
   return (
     <Pressy onPress={onPress}>
       <View style={{
-        minHeight: s(selected ? 110 : 106), borderRadius: s(22), backgroundColor: C.white, padding: s(12),
+        minHeight: s(106), borderRadius: s(22), backgroundColor: selected ? '#F6FCFA' : C.white, padding: s(12),
         flexDirection: 'row', alignItems: 'center', gap: s(12),
-        borderWidth: selected ? s(2) : 0, borderColor: C.aqua,
+        // Selected: the filled Aqua check carries the state; a thin tinted border and a faint tint support it.
+        borderWidth: s(1), borderColor: selected ? 'rgba(32,205,184,0.5)' : 'transparent',
         boxShadow: `0px ${s(2)}px ${s(8)}px rgba(8,38,36,0.06), 0px ${s(8)}px ${s(24)}px rgba(8,38,36,0.06)`,
       }}>
-        <View style={{ width: s(44), height: s(44), borderRadius: s(22), backgroundColor: selected ? C.aqua : C.mint, alignItems: 'center', justifyContent: 'center', marginLeft: selected ? 0 : s(2) }}>
+        <View style={{ width: s(44), height: s(44), borderRadius: s(22), backgroundColor: selected ? C.aqua : C.mint, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name={selected ? 'check' : 'plus'} size={20} color={selected ? C.ink : C.aquaText} />
         </View>
         <View style={{ flex: 1, alignItems: 'flex-end', gap: s(4) }}>
           <Txt style={ar(600, 17, 27)}>{nameOf(id)}</Txt>
           <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{`${categoryOf(id)} · ${walkMinutes('icon', id)} د مشي`}</Txt>
-          {wait != null && <CrowdPill level={lvl} label={`${CROWD[lvl].word} · ${wait} د`} />}
+          {wait != null && <CrowdStatus wait={wait} level={lvl} />}
         </View>
         <Image source={photoOf(id)} style={{ width: s(76), height: s(76), borderRadius: s(16) }} contentFit="cover" />
       </View>

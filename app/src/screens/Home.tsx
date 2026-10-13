@@ -1,16 +1,16 @@
 /**
  * 04 — Location Permission and 05 — Home (Default / Crowd High), with the glass tab bar.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import Animated, { FadeIn, FadeInDown, useSharedValue } from 'react-native-reanimated';
-import { C, M, ar, s } from '../theme';
-import { Button, CROWD, Glass, GlassButton, Icon, Pressy, Txt, levelFor } from '../components/ui';
-import { CurrentLocation, HeatSpot, MapPlane, PavilionMarker } from '../map/MapView';
+import { C, K, M, VIEW_H, ar, s, useSafe } from '../theme';
+import { Button, CROWD, Glass, GlassButton, Icon, Pressy, Txt, crowdText, levelFor } from '../components/ui';
+import { CurrentLocation, HeatSpot, MapPlane, PavilionMarker, Rect, labelRect, overlaps } from '../map/MapView';
 import { placePoint, toPath, walkBetween } from '../map/route';
 import { useNav } from '../nav/Navigator';
 import { useStore } from '../data/store';
@@ -22,6 +22,7 @@ import { TabBar, useTabs } from '../components/tabs';
 // ---------- Location Permission ----------
 export function LocationPermission() {
   const nav = useNav();
+  const safe = useSafe();
   // Illustration: a route from just south of the plaza up to District 1, with the visitor's dot.
   const route = useMemo(() => walkBetween('plaza_south', 'de'), []);
   const vx = useSharedValue(placePoint('plaza_south').x), vy = useSharedValue(placePoint('plaza_south').y), va = useSharedValue(-90);
@@ -54,7 +55,7 @@ export function LocationPermission() {
           <Txt style={[ar(400, 17, 29), { color: C.slate }]}>نستخدم موقعك أثناء الزيارة لاقتراح أقرب المسارات وتحديث خطتك عند تغيّر الازدحام.</Txt>
         </Animated.View>
         {benefits.map((b, i) => (
-          <Animated.View key={b.t} entering={FadeInDown.delay(120 + i * 80).duration(M.sheet)} style={{ height: s(42), flexDirection: 'row', alignItems: 'center', gap: s(12) }}>
+          <Animated.View key={b.t} entering={FadeInDown.delay(120 + i * 80).duration(M.sheet)} style={{ minHeight: s(42), flexDirection: 'row-reverse', alignItems: 'center', gap: s(12) }}>
             <View style={{ width: s(42), height: s(42), borderRadius: s(16), backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name={b.i} size={22} color={C.aquaText} />
             </View>
@@ -62,7 +63,7 @@ export function LocationPermission() {
           </Animated.View>
         ))}
       </View>
-      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(46), gap: s(6), alignItems: 'center' }}>
+      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: safe.ctaBottom, gap: s(6), alignItems: 'center' }}>
         <Button label="السماح أثناء الاستخدام" style={{ alignSelf: 'stretch' }} onPress={() => nav.replace('Home', undefined, 'dissolve')} />
         <Button label="ليس الآن" variant="tertiary" size="medium" onPress={() => nav.replace('Home', undefined, 'dissolve')} />
       </View>
@@ -71,12 +72,12 @@ export function LocationPermission() {
 }
 
 // ---------- Home ----------
-const LABELLED = 5;   // blobs and labels only on the busiest few, so the map stays readable and light
-// A label whose box would overlap a placed one is skipped, so labels never stack (labels are wide pills, ~40 tall).
-const LABEL_GAP = { x: 110, y: 44 };
+const LABELLED = 5;   // heat blobs on the busiest few, so the map stays readable and light
+const MAX_LABELS = 3;   // at most this many labels at once: the busiest ones that fit in the open map area
 
 export function Home() {
   const nav = useNav();
+  const safe = useSafe();
   const { crowd, plan, refreshCrowd } = useStore();
   const camY = useSharedValue(0);
   const vx = useSharedValue(232), vy = useSharedValue(470), va = useSharedValue(-90);
@@ -87,19 +88,33 @@ export function Home() {
   const busy = overall === 'busy' || overall === 'critical';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'صباح الخير' : 'مساء الخير';
+  const searchTop = safe.top(62);
+  const statusTop = searchTop + s(62);
+  const [sheetH, setSheetH] = useState(s(330));
 
   const { heat, labels } = useMemo(() => {
-    const busiest = PAVILION_IDS.filter((id) => crowd[id] != null && levelFor(crowd[id]) !== 'low')
-      .sort((a, b) => crowd[b] - crowd[a]).slice(0, LABELLED);
-    const placed: { x: number; y: number }[] = [];
-    const labels = busiest.filter((id) => {
-      const p = placePoint(id);
-      if (placed.some((q) => Math.abs(q.x - p.x) < LABEL_GAP.x && Math.abs(q.y - p.y) < LABEL_GAP.y)) return false;
-      placed.push(p);
-      return true;
-    });
-    return { heat: busiest, labels };
-  }, [crowd]);
+    const ranked = PAVILION_IDS.filter((id) => crowd[id] != null && levelFor(crowd[id]) !== 'low')
+      .sort((a, b) => crowd[b] - crowd[a]);
+    // Labels only where they can be read: below the status pill, above the sheet, clear of the map buttons and the
+    // visitor, and never on top of a busier pavilion's label (busiest first). Map units = design units here (no camera).
+    const top = (statusTop + s(39) + s(8)) / K;
+    const bottom = VIEW_H - sheetH / K + s(34) / K - 8;
+    const blocked: Rect[] = [
+      { x0: 0, x1: 72, y0: statusTop / K, y1: statusTop / K + 106 },   // locate + crowd buttons
+      { x0: 232 - 30, x1: 232 + 30, y0: 470 - 30, y1: 470 + 30 },        // you are here
+    ];
+    const placed: Rect[] = [];
+    const labels: string[] = [];
+    for (const id of ranked) {
+      if (labels.length >= MAX_LABELS) break;
+      const r = labelRect(placePoint(id), 'pavilion');
+      if (r.y0 < top || r.y1 > bottom) continue;
+      if ([...blocked, ...placed].some((q) => overlaps(r, q))) continue;
+      placed.push(r);
+      labels.push(id);
+    }
+    return { heat: [...new Set([...ranked.slice(0, LABELLED), ...labels])], labels };
+  }, [crowd, sheetH, statusTop]);
   const openPlan = () => nav.push('PlanTime');
   const onTab = useTabs('home');
 
@@ -110,13 +125,13 @@ export function Home() {
         {heat.map((id) => <HeatSpot key={`heat-${id}`} id={id} at={placePoint(id)} level={levelFor(crowd[id])} />)}
         {labels.map((id) => {
           const w = crowd[id], lvl = levelFor(w);
-          return <PavilionMarker key={`mark-${id}`} at={placePoint(id)} name={nameOf(id)} meta={`${CROWD[lvl].word} · ${w} د`} level={lvl} />;
+          return <PavilionMarker key={`mark-${id}`} at={placePoint(id)} name={nameOf(id)} meta={crowdText.compact(w, lvl)} level={lvl} />;
         })}
         <CurrentLocation x={vx} y={vy} angle={va} />
       </MapPlane>
 
       {/* search + profile */}
-      <View style={{ position: 'absolute', top: s(62), left: s(16), right: s(16), flexDirection: 'row', alignItems: 'center', gap: s(16) }}>
+      <View style={{ position: 'absolute', top: searchTop, left: s(16), right: s(16), flexDirection: 'row', alignItems: 'center', gap: s(16) }}>
         <GlassButton icon="person" onPress={() => onTab('profile')} />
         <Pressy style={{ flex: 1 }} onPress={() => onTab('explore')}>
           <Glass level="regular" radius={25} style={{ height: s(50), paddingHorizontal: s(16), flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
@@ -127,7 +142,7 @@ export function Home() {
       </View>
 
       {/* live status (tap: refresh crowd) + map controls */}
-      <Pressy onPress={refreshCrowd} style={{ position: 'absolute', top: s(124), right: s(16) }}>
+      <Pressy onPress={refreshCrowd} style={{ position: 'absolute', top: statusTop, right: s(16) }}>
         <Glass level="regular" radius={20} fill="rgba(255,255,255,0.72)" border="rgba(255,255,255,0.85)"
           style={{ height: s(39), paddingHorizontal: s(14), flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
           <Animated.View key={overall} entering={FadeIn.duration(M.standard)}>
@@ -139,18 +154,23 @@ export function Home() {
           <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: C.aqua }} />
         </Glass>
       </Pressy>
-      <View style={{ position: 'absolute', left: s(16), top: s(124), gap: s(10) }}>
+      <View style={{ position: 'absolute', left: s(16), top: statusTop, gap: s(10) }}>
         <GlassButton icon="locate" />
         <GlassButton icon="crowd" selected />
       </View>
 
       {/* plan prompt sheet */}
       <Glass level="regular" radius={34} fill="rgba(255,255,255,0.86)" border="rgba(255,255,255,0.95)"
-        style={{ position: 'absolute', left: 0, right: 0, bottom: s(-34), paddingHorizontal: s(20), paddingTop: s(8), paddingBottom: s(112 + 34), gap: s(12), borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
+        onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
+        style={{ position: 'absolute', left: 0, right: 0, bottom: s(-34), paddingHorizontal: s(20), paddingTop: s(8), paddingBottom: safe.tabClear + s(34), gap: s(12), borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
         <View style={{ alignSelf: 'flex-end', marginRight: s(4), width: s(36), height: s(5), borderRadius: s(3), backgroundColor: 'rgba(96,120,116,0.45)' }} />
+        {/* Context line, quieter than the question: location first, then greeting, temperature last. */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: s(6) }}>
-          <Txt style={[ar(500, 13, 19), { color: C.slate }]}>31°</Txt>
-          <Txt style={[ar(500, 13, 19), { color: C.slate }]}>{`${greeting} · أنت قرب الساحة المركزية`}</Txt>
+          <Txt style={[ar(400, 12, 18), { color: C.slate2 }]}>31°</Txt>
+          <View style={{ width: s(3), height: s(3), borderRadius: s(2), backgroundColor: C.muted }} />
+          <Txt style={[ar(400, 13, 19), { color: C.slate2 }]}>{greeting}</Txt>
+          <View style={{ width: s(3), height: s(3), borderRadius: s(2), backgroundColor: C.muted }} />
+          <Txt style={[ar(500, 13, 19), { color: C.slate }]}>أنت قرب الساحة المركزية</Txt>
           <Icon name="pin" size={16} color={C.aquaText} />
         </View>
         <Animated.View key={busy ? 'h' : 'd'} entering={FadeIn.duration(M.standard)} style={{ gap: s(2) }}>
@@ -160,7 +180,7 @@ export function Home() {
         <Button label="خطط يومي" icon="plan" onPress={openPlan} />
       </Glass>
 
-      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(30) }}>
+      <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: safe.floatBottom }}>
         <TabBar selected="home" onSelect={onTab} />
       </View>
     </View>
