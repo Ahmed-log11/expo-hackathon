@@ -1,7 +1,7 @@
 /**
  * 04 — Location Permission and 05 — Home (Default / Crowd High), with the glass tab bar.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
@@ -14,7 +14,7 @@ import { CurrentLocation, HeatSpot, MapPlane, PavilionMarker } from '../map/MapV
 import { placePoint, toPath, walkBetween } from '../map/route';
 import { useNav } from '../nav/Navigator';
 import { useStore } from '../data/store';
-import { nameOf } from '../data/places';
+import { PAVILION_IDS, nameOf } from '../data/places';
 import { MAP_IMAGE } from '../assets/images';
 import type { IconName } from '../assets/svg';
 import { TabBar, useTabs } from '../components/tabs';
@@ -71,22 +71,35 @@ export function LocationPermission() {
 }
 
 // ---------- Home ----------
-const HOME_MARKERS = ['jp', 'kr', 'th_technology'];
+const LABELLED = 5;   // blobs and labels only on the busiest few, so the map stays readable and light
+// A label whose box would overlap a placed one is skipped, so labels never stack (labels are wide pills, ~40 tall).
+const LABEL_GAP = { x: 110, y: 44 };
 
 export function Home() {
   const nav = useNav();
-  const { crowd, plan, route } = useStore();
-  const [high, setHigh] = useState(false);
+  const { crowd, plan, refreshCrowd } = useStore();
   const camY = useSharedValue(0);
   const vx = useSharedValue(232), vy = useSharedValue(470), va = useSharedValue(-90);
   const hours = Math.max(1, Math.round((plan.end.getTime() - plan.start.getTime()) / 3600_000));
   const waits = Object.values(crowd);
   const avg = waits.length ? waits.reduce((a, b) => a + b, 0) / waits.length : 18;
-  const overall = high ? 'busy' : levelFor(avg);
+  const overall = levelFor(avg);
+  const busy = overall === 'busy' || overall === 'critical';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'صباح الخير' : 'مساء الخير';
 
-  const waitOf = (id: string) => (high && id === 'jp' ? 38 : crowd[id] ?? 12);
+  const { heat, labels } = useMemo(() => {
+    const busiest = PAVILION_IDS.filter((id) => crowd[id] != null && levelFor(crowd[id]) !== 'low')
+      .sort((a, b) => crowd[b] - crowd[a]).slice(0, LABELLED);
+    const placed: { x: number; y: number }[] = [];
+    const labels = busiest.filter((id) => {
+      const p = placePoint(id);
+      if (placed.some((q) => Math.abs(q.x - p.x) < LABEL_GAP.x && Math.abs(q.y - p.y) < LABEL_GAP.y)) return false;
+      placed.push(p);
+      return true;
+    });
+    return { heat: busiest, labels };
+  }, [crowd]);
   const openPlan = () => nav.push('PlanTime');
   const onTab = useTabs('home');
 
@@ -94,12 +107,10 @@ export function Home() {
     <View style={{ flex: 1, backgroundColor: C.mapBg }}>
       <StatusBar style="dark" />
       <MapPlane camY={camY}>
-        <HeatSpot id="plaza" at={{ x: 201, y: 440 }} level="moderate" />
-        <HeatSpot id="ksa" at={placePoint('ksa')} level="moderate" />
-        {HOME_MARKERS.map((id) => <HeatSpot key={id + (high ? 'h' : '')} id={id} at={placePoint(id)} level={levelFor(waitOf(id))} />)}
-        {HOME_MARKERS.map((id) => {
-          const w = waitOf(id), lvl = levelFor(w);
-          return <PavilionMarker key={id} at={placePoint(id)} name={nameOf(id)} meta={`${CROWD[lvl].word} · ${w} د`} level={lvl} />;
+        {heat.map((id) => <HeatSpot key={`heat-${id}`} id={id} at={placePoint(id)} level={levelFor(crowd[id])} />)}
+        {labels.map((id) => {
+          const w = crowd[id], lvl = levelFor(w);
+          return <PavilionMarker key={`mark-${id}`} at={placePoint(id)} name={nameOf(id)} meta={`${CROWD[lvl].word} · ${w} د`} level={lvl} />;
         })}
         <CurrentLocation x={vx} y={vy} angle={va} />
       </MapPlane>
@@ -115,8 +126,8 @@ export function Home() {
         </Pressy>
       </View>
 
-      {/* live status (tap: crowd high) + map controls */}
-      <Pressy onPress={() => setHigh((h) => !h)} style={{ position: 'absolute', top: s(124), right: s(16) }}>
+      {/* live status (tap: refresh crowd) + map controls */}
+      <Pressy onPress={refreshCrowd} style={{ position: 'absolute', top: s(124), right: s(16) }}>
         <Glass level="regular" radius={20} fill="rgba(255,255,255,0.72)" border="rgba(255,255,255,0.85)"
           style={{ height: s(39), paddingHorizontal: s(14), flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
           <Animated.View key={overall} entering={FadeIn.duration(M.standard)}>
@@ -142,9 +153,9 @@ export function Home() {
           <Txt style={[ar(500, 13, 19), { color: C.slate }]}>{`${greeting} · أنت قرب الساحة المركزية`}</Txt>
           <Icon name="pin" size={16} color={C.aquaText} />
         </View>
-        <Animated.View key={high ? 'h' : 'd'} entering={FadeIn.duration(M.standard)} style={{ gap: s(2) }}>
-          <Txt style={ar(700, 22, 31)}>{high ? 'الزحمة مرتفعة في الشمال' : `عندك ${hours} ساعات في إكسبو؟`}</Txt>
-          <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{high ? 'نبدأ يومك من الأجنحة الهادئة جنوبًا، ونعود للشمال عندما يخف الازدحام.' : 'نبني لك أفضل مسار حسب الزحمة الآن.'}</Txt>
+        <Animated.View key={busy ? 'h' : 'd'} entering={FadeIn.duration(M.standard)} style={{ gap: s(2) }}>
+          <Txt style={ar(700, 22, 31)}>{busy ? 'الزحمة مرتفعة الآن' : `عندك ${hours} ساعات في إكسبو؟`}</Txt>
+          <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{busy ? 'نبدأ يومك من الأجنحة الهادئة، ونرجع للمزدحمة لما يخف الازدحام.' : 'نبني لك أفضل مسار حسب الزحمة الآن.'}</Txt>
         </Animated.View>
         <Button label="خطط يومي" icon="plan" onPress={openPlan} />
       </Glass>

@@ -17,7 +17,7 @@ export function NextStopCard({ compact, stopNo, total, eta, name, category, leve
   const body = (
     <Glass level="regular" radius={30} fill="rgba(255,255,255,0.84)" border="rgba(255,255,255,0.95)"
       style={{ paddingHorizontal: s(20), paddingTop: s(16), paddingBottom: s(18), gap: s(compact ? 12 : 14) }}>
-      <View style={{ height: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View style={{ minHeight: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(3) }}>
           <Txt style={[ar(500, 12, 18), { color: C.slate }]}>{`${stopNo} من ${total}`}</Txt>
           <FlowDots total={total} current={stopNo} variant="card" />
@@ -67,7 +67,7 @@ export function NavInstruction({ title, detail, photo, onPress, style }: { title
 export function JourneyCapsule({ label, total, current, style }: { label: string; total: number; current: number; style?: ViewStyle }) {
   return (
     <Glass level="regular" radius={22} fill="rgba(255,255,255,0.72)" border="rgba(255,255,255,0.85)"
-      style={[{ height: s(44), paddingHorizontal: s(16), flexDirection: 'row', alignItems: 'center', gap: s(10) }, style] as any}>
+      style={[{ minHeight: s(44), paddingHorizontal: s(16), flexDirection: 'row', alignItems: 'center', gap: s(10) }, style] as any}>
       <FlowDots total={total} current={current} />
       <Txt style={ar(600, 15, 22)}>{label}</Txt>
     </Glass>
@@ -79,7 +79,7 @@ export function LiveAlert({ kind, text }: { kind: 'rising' | 'searching'; text: 
   const rising = kind === 'rising';
   return (
     <Glass level="regular" radius={22} fill="rgba(255,255,255,0.86)" border="rgba(255,255,255,0.95)"
-      style={{ height: s(44), paddingHorizontal: s(14), flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
+      style={{ minHeight: s(44), paddingHorizontal: s(14), flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
       <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: rising ? C.busy : C.aqua }} />
       <Txt style={ar(600, 15, 22)}>{text}</Txt>
       <Icon name={rising ? 'crowd' : 'reroute'} size={18} color={rising ? C.busyText : C.aquaText} />
@@ -90,7 +90,7 @@ export function LiveAlert({ kind, text }: { kind: 'rising' | 'searching'; text: 
 // ---------- Toast ----------
 export function Toast({ text }: { text: string }) {
   return (
-    <View style={{ height: s(44), borderRadius: s(22), backgroundColor: C.deep, paddingHorizontal: s(16), flexDirection: 'row', alignItems: 'center', gap: s(8), boxShadow: `0px ${s(12)}px ${s(40)}px rgba(8,38,36,0.16)` }}>
+    <View style={{ minHeight: s(44), borderRadius: s(22), backgroundColor: C.deep, paddingHorizontal: s(16), flexDirection: 'row', alignItems: 'center', gap: s(8), boxShadow: `0px ${s(12)}px ${s(40)}px rgba(8,38,36,0.16)` }}>
       <Txt style={[ar(600, 15, 22), { color: C.white }]}>{text}</Txt>
       <View style={{ width: s(20), height: s(20), borderRadius: s(11), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}>
         <Icon name="check" size={14} color={C.ink} />
@@ -122,14 +122,14 @@ export function RerouteCard({ message, prev, next, oldWait, newWait, oldWaitName
       <Txt style={[ar(400, 17, 29), { color: C.slate }]}>{message}</Txt>
       <View style={{ backgroundColor: C.canvas, borderRadius: s(18), paddingHorizontal: s(14), paddingVertical: s(12), gap: s(10) }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
-          <View style={{ backgroundColor: C.busyBg, borderRadius: s(10), paddingHorizontal: s(8), paddingVertical: s(3) }}>
+          <View style={{ backgroundColor: C.busyBg, borderRadius: s(10), paddingHorizontal: s(8), justifyContent: 'center' }}>
             <Txt style={[ar(600, 12, 17), { color: C.busyText }]}>{`${oldWaitName} ${oldWait} د`}</Txt>
           </View>
           <Txt style={[ar(400, 15, 24), { color: C.slate2, flex: 1 }]} numberOfLines={1}>{prev}</Txt>
           <Txt style={[ar(600, 13, 19), { color: C.slate2 }]}>السابق</Txt>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
-          <View style={{ backgroundColor: C.lowBg, borderRadius: s(10), paddingHorizontal: s(8), paddingVertical: s(3) }}>
+          <View style={{ backgroundColor: C.lowBg, borderRadius: s(10), paddingHorizontal: s(8), justifyContent: 'center' }}>
             <Txt style={[ar(600, 12, 17), { color: C.lowText }]}>{`${newWaitName} ${newWait} د`}</Txt>
           </View>
           <Txt style={[ar(600, 15, 22), { flex: 1 }]} numberOfLines={1}>{next}</Txt>
@@ -137,20 +137,20 @@ export function RerouteCard({ message, prev, next, oldWait, newWait, oldWaitName
         </View>
       </View>
       <View>
-        <View style={{ height: s(52), borderRadius: s(18), backgroundColor: C.deep, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s(8) }}>
+        <View style={{ minHeight: s(52), borderRadius: s(18), backgroundColor: C.deep, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s(8) }}>
           <Txt style={[ar(600, 17, 27), { color: C.white }]}>دقيقة انتظار</Txt>
           <Txt style={[sf(700, 22, 28), { color: C.aqua }]}>{`−${saves}`}</Txt>
           <Icon name="wait" size={22} color={C.aqua} />
         </View>
         <Animated.View pointerEvents="none" style={[{ position: 'absolute', left: s(-4), right: s(-4), top: s(-4), bottom: s(-4), borderRadius: s(22), borderWidth: s(2.5), borderColor: '#20CCB8' }, ringStyle]} />
       </View>
-      <View style={{ flexDirection: 'row', gap: s(8) }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
         <Icon name="crowd" size={18} color={C.slate} />
         <Txt style={[ar(400, 13, 21), { color: C.slate, flex: 1 }]}>{note}</Txt>
       </View>
-      <View style={{ flexDirection: 'row', gap: s(8), alignItems: 'center' }}>
+      <View style={{ flexDirection: 'row', gap: s(8), alignItems: 'stretch' }}>
         <Button label="الإبقاء على خطتي" variant="tertiary" size="medium" height={56} padX={8} style={{ flex: 151 }} onPress={onKeep} />
-        <Button label={confirmed ? 'تم تحديث المسار' : 'اعتمد المسار الجديد'} padX={10} style={{ flex: 171 }} onPress={onAccept} />
+        <Button label={confirmed ? 'تم تحديث المسار' : 'اعتمد المسار الجديد'} size="medium" height={56} padX={10} style={{ flex: 171 }} onPress={onAccept} />
       </View>
     </View>
   );

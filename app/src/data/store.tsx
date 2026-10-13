@@ -28,6 +28,7 @@ type Store = {
   decline: () => Promise<void>;
   event: (type: 'arrived' | 'entered' | 'left', pid: string) => Promise<void>;
   triggerCrowd: () => Promise<void>;
+  refreshCrowd: () => void;
   loadSummary: () => Promise<void>;
   clearAlert: () => void;
   resetDay: () => void;
@@ -36,17 +37,18 @@ type Store = {
 const Ctx = createContext<Store | null>(null);
 export const useStore = () => useContext(Ctx)!;
 
-/** Default plan: 4:00 PM → 10:00 PM as in the design; later than 6 PM it moves to tomorrow (the Expo closes at midnight). */
+/** Default plan: during opening hours (10:00–23:00) it starts now, so live reroutes work right away;
+ * otherwise tomorrow at 4:00 PM. It runs up to 6 hours and never past midnight (the Expo closes then). */
 function defaultPlan(): PlanInput {
   const now = new Date();
+  const h = now.getHours();
   const start = new Date(now);
-  start.setHours(16, 0, 0, 0);
-  if (now.getHours() >= 18) start.setDate(start.getDate() + 1);
-  else if (start.getTime() < now.getTime()) start.setTime(now.getTime() + 60_000);
-  const end = new Date(start);
-  end.setHours(22, 0, 0, 0);
-  if (end.getTime() - start.getTime() < 2 * 3600_000) end.setTime(Math.min(start.getTime() + 4 * 3600_000, new Date(start).setHours(24, 0, 0, 0)));
-  return { start, end, tags: ['culture', 'technology'], mustVisit: ['ksa', 'jp'], comfort: ['shade', 'less_wait', 'family'] };
+  if (h < 10 || h >= 23) {
+    if (h >= 23) start.setDate(start.getDate() + 1);
+    start.setHours(16, 0, 0, 0);
+  }
+  const end = new Date(Math.min(start.getTime() + 6 * 3600_000, new Date(start).setHours(24, 0, 0, 0)));
+  return { start, end, tags: ['culture', 'technology'], mustVisit: [], comfort: ['shade', 'less_wait', 'family'] };
 }
 export function dayLabel(d: Date) {
   const t = new Date(); t.setHours(0, 0, 0, 0);
@@ -77,17 +79,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     else if (m.type === 'reroute') setRoute(m.route);
   }, []);
 
-  useEffect(() => {
+  const refreshCrowd = useCallback(() => {
     backend.crowd().then((c) => setCrowd(Object.fromEntries(c.map((p) => [p.pavilion_id, p.wait_min])))).catch(() => {});
-    return () => unsub.current?.();
   }, []);
+
+  useEffect(() => {
+    refreshCrowd();
+    return () => unsub.current?.();
+  }, [refreshCrowd]);
+
+  // Before a plan exists there is no live socket, so poll the crowd every 30 s.
+  useEffect(() => {
+    if (visitorId) return;
+    const t = setInterval(refreshCrowd, 30_000);
+    return () => clearInterval(t);
+  }, [visitorId, refreshCrowd]);
 
   const createPlan = useCallback(async () => {
     setError(undefined);
     try {
+      // The wizard may sit open for a while: a start that slipped into the past becomes "now" (the API rejects it otherwise).
+      const start = new Date(Math.max(plan.start.getTime(), Date.now()));
+      const end = new Date(Math.max(plan.end.getTime(), start.getTime() + 3600_000));
       const res = await backend.createVisitor({
-        interest_tags: plan.tags, must_visit: plan.mustVisit, language: 'ar',
-        start_time: plan.start.toISOString(), end_time: plan.end.toISOString(),
+        // Picked pavilions only: interest tags would make the server add pavilions the visitor never chose.
+        interest_tags: plan.mustVisit.length ? [] : plan.tags, must_visit: plan.mustVisit, language: 'ar',
+        start_time: start.toISOString(), end_time: end.toISOString(),
       });
       unsub.current?.();
       vidRef.current = res.visitor_id;
@@ -126,20 +143,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     await backend.event(vid, type, pid).catch(() => {});
     if (type === 'left') {
       const st = route?.stops.find((s) => s.pavilion_id === pid);
-      setDone((d) => [...d, { id: pid, wait: st?.wait_min ?? 0, visit: st?.visit_min ?? 0, at: new Date() }]);
+      // A double tap can send "left" twice; record each pavilion once.
+      setDone((d) => (d.some((x) => x.id === pid) ? d : [...d, { id: pid, wait: st?.wait_min ?? 0, visit: st?.visit_min ?? 0, at: new Date() }]));
       setRoute(await backend.route(vid));
     }
     // fresh crowd levels for the next stop rather than waiting for the next live tick
-    if (type === 'entered' || type === 'left') {
-      backend.crowd().then((c) => setCrowd(Object.fromEntries(c.map((p) => [p.pavilion_id, p.wait_min])))).catch(() => {});
-    }
-  }, [route]);
+    if (type === 'entered' || type === 'left') refreshCrowd();
+  }, [route, refreshCrowd]);
 
-  /** Demo control: the next stop's queue jumps, which makes the backend look for a better order. */
+  /** Demo control: the next stop's queue jumps past the engine's 60-min limit, which makes it offer a better order. */
   const triggerCrowd = useCallback(async () => {
     const next = route?.stops[0];
     if (!next) return;
-    await backend.spike(next.pavilion_id, Math.max(38, next.wait_min + 26)).catch((e) => setError(e?.message));
+    await backend.spike(next.pavilion_id, Math.max(90, next.wait_min + 45)).catch((e) => setError(e?.message));
   }, [route]);
 
   const loadSummary = useCallback(async () => {
@@ -156,8 +172,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<Store>(() => ({
     mode: backend.mode, plan, setPlan: (p) => setPlanState((o) => ({ ...o, ...p })),
     visitorId, route, wishlist, done, crowd, alert, offer, savedByReroutes, summary, error,
-    createPlan, accept, decline, event, triggerCrowd, loadSummary, clearAlert: () => setAlert(undefined), resetDay,
-  }), [plan, visitorId, route, wishlist, done, crowd, alert, offer, savedByReroutes, summary, error, createPlan, accept, decline, event, triggerCrowd, loadSummary, resetDay]);
+    createPlan, accept, decline, event, triggerCrowd, refreshCrowd, loadSummary, clearAlert: () => setAlert(undefined), resetDay,
+  }), [plan, visitorId, route, wishlist, done, crowd, alert, offer, savedByReroutes, summary, error, createPlan, accept, decline, event, triggerCrowd, refreshCrowd, loadSummary, resetDay]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

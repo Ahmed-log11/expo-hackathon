@@ -74,7 +74,7 @@ export function Generating() {
       </View>
       <View style={{ position: 'absolute', left: s(51), width: s(300), top: s(600), alignItems: 'center', gap: s(20) }}>
         <Txt style={[ar(700, 22, 31), { color: C.white, textAlign: 'center' }]}>{failed ? 'تعذّر إنشاء الخطة' : 'نبني أفضل ترتيب ليومك…'}</Txt>
-        <View style={{ height: s(28), alignSelf: 'stretch', alignItems: 'center' }}>
+        <View style={{ height: s(36), alignSelf: 'stretch', alignItems: 'center' }}>
           {failed ? (
             <Txt style={[ar(400, 15, 24), { color: C.mint, textAlign: 'center' }]}>{failed}</Txt>
           ) : (
@@ -131,6 +131,7 @@ export function PlanReady() {
   const hours = Math.round((plan.end.getTime() - plan.start.getTime()) / 3600_000);
   const km = totals?.distance_km ?? 0;
   const yours = baseline > 0 ? Math.max(0.12, wait / baseline) : 1;
+  const dropped = route?.feasibility?.dropped ?? [];
 
   return (
     <View style={{ flex: 1, backgroundColor: C.mapBg }}>
@@ -171,16 +172,36 @@ export function PlanReady() {
           <View style={{ gap: s(8), alignItems: 'flex-end' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
               <Txt style={ar(700, 34, 46)}>خطتك جاهزة</Txt>
-              <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: C.aqua }} />
+              {/* The font's ink sits ~0.13 em below its line box centre, so the dot drops 4 to line up with the letters. */}
+              <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: C.aqua, top: s(4) }} />
             </View>
             <View style={{ flexDirection: 'row', gap: s(8) }}>
               {[`${km} كم`, `${hours} ساعات`, `${stops.length} محطات`].map((t) => (
-                <View key={t} style={{ height: s(36), borderRadius: s(14), backgroundColor: C.white, borderWidth: s(1), borderColor: C.line, paddingHorizontal: s(12), justifyContent: 'center' }}>
+                <View key={t} style={{ minHeight: s(36), borderRadius: s(14), backgroundColor: C.white, borderWidth: s(1), borderColor: C.line, paddingHorizontal: s(12), alignItems: 'center', justifyContent: 'center' }}>
                   <Txt style={ar(600, 15, 22)}>{t}</Txt>
                 </View>
               ))}
             </View>
           </View>
+
+          {/* picked pavilions that don't fit: the visitor chose them, so this sits on top */}
+          {dropped.length ? (
+            <View style={{ backgroundColor: C.modBg, borderRadius: s(20), borderWidth: s(1), borderColor: C.mod, padding: s(14), gap: s(10) }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
+                <View style={{ flex: 1, alignItems: 'flex-end', gap: s(2) }}>
+                  <Txt style={[ar(700, 15, 22), { color: C.modText }]}>{`ما يتسع وقتك لـ ${dropped.length} من اختياراتك اليوم`}</Txt>
+                  <Txt style={[ar(400, 15, 22), { color: C.ink }]}>{dropped.map(nameOf).join('، ')}</Txt>
+                </View>
+                <View style={{ width: s(36), height: s(36), borderRadius: s(18), backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="info" size={20} color={C.modText} />
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: s(8) }}>
+                <Button label="عدّل الوقت" variant="secondary" size="medium" height={40} padX={14} onPress={() => nav.push('PlanTime')} />
+                <Txt style={[ar(500, 13, 19), { color: C.modText, flexShrink: 1 }]}>زد وقتك أو قلّل اختياراتك</Txt>
+              </View>
+            </View>
+          ) : null}
 
           {/* time saved vs the usual order */}
           <View style={{ backgroundColor: C.mint, borderRadius: s(24), padding: s(18), gap: s(12) }}>
@@ -214,7 +235,7 @@ export function PlanReady() {
               const lvl = levelFor(w);
               const last = i === stops.length - 1;
               return (
-                <Animated.View key={st.pavilion_id} entering={FadeInDown.delay(200 + i * 80).duration(M.sheet)} style={{ flexDirection: 'row', gap: s(12), height: s(83) }}>
+                <Animated.View key={st.pavilion_id} entering={FadeInDown.delay(200 + i * 80).duration(M.sheet)} style={{ flexDirection: 'row', gap: s(12), minHeight: s(83) }}>
                   <Image source={photoOf(st.pavilion_id)} style={{ width: s(52), height: s(52), borderRadius: s(14) }} contentFit="cover" />
                   <View style={{ flex: 1, paddingTop: s(2), gap: s(6) }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: s(8) }}>
@@ -242,11 +263,6 @@ export function PlanReady() {
                 </Animated.View>
               );
             })}
-            {route?.feasibility?.dropped?.length ? (
-              <Txt style={[ar(400, 13, 21), { color: C.slate, marginTop: s(4) }]}>
-                {`ما يتسع وقتك لـ ${route.feasibility.dropped.length} من اختياراتك اليوم: ${route.feasibility.dropped.slice(0, 3).map(nameOf).join('، ')}`}
-              </Txt>
-            ) : null}
           </View>
         </View>
       </ScrollView>

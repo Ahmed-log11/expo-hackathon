@@ -379,6 +379,15 @@ async def debug_crowd(token: str | None = None):
     return {"connections": sum(len(s) for s in live.conns.values())}
 
 
+@app.post("/debug/reset")
+async def debug_reset(token: str | None = None):
+    """Demo control: clear observations, offers and ledger bookings, then push fresh crowd levels."""
+    _check_token(token)
+    engine.clear_live_state()
+    await live.broadcast(crowd_message())
+    return {"ok": True}
+
+
 # ---------- WebSocket (C5) ----------
 @app.websocket("/live/{vid}")
 async def live_ws(ws: WebSocket, vid: str):

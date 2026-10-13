@@ -134,7 +134,7 @@ export function Pavilion() {
             </View>
           </View>
           <Pressy onPress={() => setSheet(true)} scaleTo={0.99}><WaitInsight wait={wait} values={values} best={bestIdx === 0 ? 'الآن' : fmtTime(times[bestIdx])} /></Pressy>
-          <Pressable onPress={() => setSheet(true)} style={{ height: s(27), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Pressable onPress={() => setSheet(true)} style={{ minHeight: s(27), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(2) }}>
               <Icon name="chevron-left" size={18} color={C.aquaText} />
               <Txt style={[ar(600, 15, 22), { color: C.aquaText }]}>التفاصيل</Txt>
@@ -234,7 +234,7 @@ export function Explore() {
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={{ paddingBottom: s(130) }} showsVerticalScrollIndicator={false}>
-        <View style={{ marginTop: s(58), marginHorizontal: s(16), height: s(46), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View style={{ marginTop: s(58), marginHorizontal: s(16), minHeight: s(46), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <RoundButton icon="bell" onPress={() => nav.push('Notifications')} />
           <Txt style={ar(700, 34, 46)}>استكشف</Txt>
         </View>
@@ -280,7 +280,7 @@ export function Explore() {
 
 function SectionHead({ title, onAll }: { title: string; onAll?: () => void }) {
   return (
-    <View style={{ marginTop: s(22), marginBottom: s(12), marginHorizontal: s(16), height: s(28), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+    <View style={{ marginTop: s(22), marginBottom: s(12), marginHorizontal: s(16), minHeight: s(28), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
       <Pressable onPress={onAll} style={{ flexDirection: 'row', alignItems: 'center', gap: s(2) }}>
         <Icon name="chevron-left" size={18} color={C.aquaText} />
         <Txt style={[ar(600, 15, 22), { color: C.aquaText }]}>الكل</Txt>
@@ -337,7 +337,7 @@ export function Favorites() {
         <Txt style={ar(700, 34, 46)}>المحفوظة</Txt>
         <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{`${saved.length} أماكن · نعرض لك حالة الازدحام مباشرة`}</Txt>
       </View>
-      <View style={{ position: 'absolute', left: s(16), top: s(204), width: s(328), gap: s(12) }}>
+      <View style={{ position: 'absolute', left: s(16), top: s(256), width: s(328), gap: s(12) }}>
         {saved.map((id) => {
           const w = crowd[id] ?? 12, lvl = levelFor(w);
           const on = inPlan(id);
@@ -345,7 +345,7 @@ export function Favorites() {
           return (
             <Animated.View key={id} layout={LinearTransition.duration(M.sheet)} exiting={FadeOut.duration(M.sheet)} style={{ gap: s(8) }}>
               <Pressy onPress={() => setExpanded(open ? '' : id)} scaleTo={0.99}>
-                <View style={{ height: s(106), borderRadius: s(22), backgroundColor: C.white, padding: s(12), flexDirection: 'row', alignItems: 'center', gap: s(12), boxShadow: raised }}>
+                <View style={{ minHeight: s(106), borderRadius: s(22), backgroundColor: C.white, padding: s(12), flexDirection: 'row', alignItems: 'center', gap: s(12), boxShadow: raised }}>
                   <View style={{ width: s(44), height: s(44), borderRadius: s(22), backgroundColor: on ? C.aqua : C.mint, alignItems: 'center', justifyContent: 'center' }}>
                     <Icon name={on ? 'check' : 'plus'} size={20} color={on ? C.ink : C.aquaText} />
                   </View>
@@ -400,7 +400,7 @@ export function Notifications() {
         <Txt style={ar(700, 34, 46)}>التنبيهات</Txt>
         <Txt style={[ar(400, 15, 24), { color: C.slate }]}>نرسل لك المهم فقط أثناء زيارتك.</Txt>
       </View>
-      <View style={{ position: 'absolute', left: s(16), right: s(16), top: s(204), gap: s(10) }}>
+      <View style={{ position: 'absolute', left: s(16), right: s(16), top: s(256), gap: s(10) }}>
         <Txt style={[ar(600, 13, 19), { color: C.slate }]}>اليوم</Txt>
         {items.map((n, i) => (
           <Pressy key={i} onPress={n.to} scaleTo={0.99}>
@@ -484,7 +484,7 @@ export function Profile() {
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={{ paddingTop: s(58), paddingHorizontal: s(16), paddingBottom: s(130), gap: s(20) }} showsVerticalScrollIndicator={false}>
         <Txt style={ar(700, 34, 46)}>حسابي</Txt>
-        <View style={{ height: s(82), borderRadius: s(22), backgroundColor: C.deep, padding: s(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ minHeight: s(82), borderRadius: s(22), backgroundColor: C.deep, padding: s(16), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ width: s(48), height: s(48), borderRadius: s(26), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name="person" size={24} color={C.ink} />
           </View>

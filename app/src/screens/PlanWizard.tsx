@@ -2,7 +2,7 @@
  * 05 — Planning wizard: Time (1/4) → Interests (2/4) → Must Visit (3/4) → Comfort (4/4).
  * Every value (positions, sizes, colours, type) comes from the Figma frames on the Prototype page.
  */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View,TextInput } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
@@ -85,8 +85,15 @@ export function PlanTime() {
   const half = (h: number) => Math.round(h * 2) / 2;
   const setStartH = (raw: number) => {
     setNote(raw < 10 || raw > 23 ? 'إكسبو يفتح من 10:00 ص حتى 12:00 منتصف الليل' : null);
-    const h = Math.min(23, Math.max(10, half(raw)));
-    const start = atHour(plan.start, h);
+    let h = Math.min(23, Math.max(10, half(raw)));
+    let start = atHour(plan.start, h);
+    // The plan can't start in the past (the server rejects it): clamp to now.
+    const now = new Date();
+    if (start.getTime() < now.getTime()) {
+      start = now;
+      h = now.getHours() + now.getMinutes() / 60;
+      setNote('ما يصير تبدأ قبل الوقت الحالي، بدأنا من الحين');
+    }
     const end = endH - h < 1 ? atHour(plan.start, Math.min(24, h + 1)) : plan.end;
     setPlan({ start, end });
   };
@@ -99,6 +106,7 @@ export function PlanTime() {
   return (
     <WizardFrame
       step={1}
+      scroll
       title="خطط يومك"
       subtitle="حدد وقتك داخل إكسبو، ونرتّب لك المحطات حسب الزحمة المتوقعة."
       footer={<Button label="التالي" style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanInterests')} />}
@@ -222,6 +230,7 @@ export function PlanInterests() {
   return (
     <WizardFrame
       step={2}
+      scroll
       title="وش تحب تكتشف؟"
       subtitle="اختر اهتمامًا أو أكثر، ونرتّب يومك حولها."
       footer={<>
@@ -267,6 +276,7 @@ function InterestCard({ item, selected, onPress }: { item: typeof INTERESTS[numb
 
 // ---------- 3/4 Must Visit ----------
 const FILTERS = [
+  { key: 'mine', label: 'حسب اهتماماتك' },
   { key: 'all', label: 'الكل' },
   { key: 'intl', label: 'الأجنحة الدولية' },
   { key: 'technology', label: 'التقنية' },
@@ -278,13 +288,29 @@ const FILTERS = [
 const TAG_FOR_INTEREST: Record<string, string[]> = {
   technology: ['technology'], culture: ['culture'], planet: ['planet'], humanity: ['humanity'], collaboration: ['collaboration'],
 };
+const PRESELECT = 6;
+/** The interests we last pre-selected pavilions for; going back and forth keeps the visitor's edits. */
+let preselectedFor = '';
 
 export function PlanMustVisit() {
   const nav = useNav();
   const { plan, setPlan, crowd } = useStore();
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('mine');
+  const [seeded, setSeeded] = useState(0);
   const chipsRef = useRef<ScrollView>(null);
   const wanted = useMemo(() => new Set(plan.tags.flatMap((t) => TAG_FOR_INTEREST[t] ?? [])), [plan.tags]);
+  const matches = (id: string) => (PLACES[id].tags ?? []).some((t) => wanted.has(t));
+  // New interests: start with the most popular matching pavilions already picked.
+  useEffect(() => {
+    const key = plan.tags.join(',');
+    if (key === preselectedFor) return;
+    preselectedFor = key;
+    const top = PAVILION_IDS.filter(matches)
+      .sort((a, b) => (PLACES[b].popularity ?? 0) - (PLACES[a].popularity ?? 0))
+      .slice(0, PRESELECT);
+    setPlan({ mustVisit: top });
+    setSeeded((n) => n + 1);
+  }, [plan.tags]);
   const list = useMemo(() => {
     const score = (id: string) => {
       const p = PLACES[id];
@@ -293,10 +319,15 @@ export function PlanMustVisit() {
       return (pick >= 0 ? 1000 - pick * 10 : 0) + match * 10 + (p.popularity ?? 0);   // picks first, in the order chosen
     };
     return PAVILION_IDS
-      .filter((id) => filter === 'all' || (filter === 'intl' ? PLACES[id].district !== 'central' && !id.startsWith('th_') : (PLACES[id].tags ?? []).includes(filter)))
+      .filter((id) => {
+        if (filter === 'all') return true;
+        if (filter === 'mine') return matches(id) || plan.mustVisit.includes(id);   // picks added from "الكل" stay visible
+        if (filter === 'intl') return PLACES[id].district !== 'central' && !id.startsWith('th_');
+        return (PLACES[id].tags ?? []).includes(filter);
+      })
       .sort((a, b) => score(b) - score(a));
-    // The order is set when the list opens or the filter changes, so cards don't jump while you tap them.
-  }, [filter, wanted]);
+    // The order is set when the list opens, the filter changes or picks are pre-selected, so cards don't jump while you tap them.
+  }, [filter, wanted, seeded]);
   const toggle = (id: string) => setPlan({ mustVisit: plan.mustVisit.includes(id) ? plan.mustVisit.filter((x) => x !== id) : [...plan.mustVisit, id].slice(0, 8) });
 
   return (
@@ -322,7 +353,7 @@ export function PlanMustVisit() {
         >
           {FILTERS.map((f) => <Chip key={f.key} label={f.label} selected={filter === f.key} onPress={() => setFilter(f.key)} />)}
         </ScrollView>
-        <View style={{ marginHorizontal: s(16), height: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ marginHorizontal: s(16), minHeight: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Txt style={[ar(600, 13, 19), { color: C.aquaText }]}>{`${plan.mustVisit.length} مختارة`}</Txt>
           <Txt style={ar(600, 17, 27)}>اقتراحات حسب اهتماماتك</Txt>
         </View>

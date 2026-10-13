@@ -76,12 +76,14 @@ export const F = {
 };
 
 type W = 400 | 500 | 600 | 700;
-/** Arabic text style: Noto Sans Arabic at a weight, size and line height (design units). */
-export function ar(weight: W, size: number, lineHeight?: number): TextStyle {
+/** Arabic text style: Noto Sans Arabic at a weight and size (design units).
+ * No lineHeight on purpose: the font's glyphs (hamza, marks) are taller than any line box we set,
+ * and iOS clips them and pushes them off-centre. Its natural line height (~2.1 x size) fits and centres them.
+ * The Figma line height is still accepted so call sites keep reading like the design. */
+export function ar(weight: W, size: number, _figmaLineHeight?: number): TextStyle {
   return {
     fontFamily: F[`ar${weight}` as keyof typeof F],
     fontSize: s(size),
-    lineHeight: s(Math.max(lineHeight ?? 0, size * 1.6)),
     writingDirection: 'rtl',
   };
 }

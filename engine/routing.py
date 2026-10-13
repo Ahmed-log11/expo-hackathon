@@ -635,6 +635,18 @@ def decline_offer(visitor_id: str, offer_id: str, now: datetime) -> None:
     _close_offer(offer_id, now, accepted=False)
 
 
+def clear_live_state() -> None:
+    """Demo reset: forget every observation, open offer, cap hold and ledger booking.
+    Visitors and their routes stay; waits fall back to the prior."""
+    CROWD.observed.clear()
+    _offers.clear()
+    _cap.clear()
+    LEDGERS.clear()
+    for meta in _meta.values():
+        meta.pop("last_offer", None)
+        meta.pop("open_offer", None)
+
+
 def crowd_snapshot(now: datetime) -> list[dict]:
     out = []
     fc = Forecast(now)

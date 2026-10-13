@@ -36,7 +36,8 @@ export function useRoute<P = any>() {
 const DURATION: Record<Transition, number> = { push: 350, back: 350, dissolve: 300, fadeOut: 300, moveIn: 380, moveOut: 360, none: 0 };
 
 let seq = 0;
-const newKey = () => `s${++seq}`;
+// The time part keeps keys unique after a Fast Refresh resets `seq` while the stack keeps its old keys.
+const newKey = () => `s${Date.now().toString(36)}-${++seq}`;
 
 export function Navigator({ screens, initial }: { screens: Record<string, React.ComponentType<any>>; initial: string }) {
   const [stack, setStack] = useState<Entry[]>([{ key: newKey(), name: initial }]);

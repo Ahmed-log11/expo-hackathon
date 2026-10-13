@@ -1,7 +1,7 @@
 /**
  * Arrival — Arrived · Arrival — Visit Complete · Day — Summary.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
@@ -26,8 +26,11 @@ export function Arrived() {
   const planned = stop?.wait_min ?? waitNow;
   const lvl = levelFor(waitNow);
   const [busy, setBusy] = useState(false);
+  const once = useRef(false);   // a double tap must not send the events or navigate twice
 
   const start = async () => {
+    if (once.current) return;
+    once.current = true;
     setBusy(true);
     await event('arrived', pid);
     await event('entered', pid);
@@ -35,7 +38,7 @@ export function Arrived() {
   };
 
   const stat = (label: string, value: React.ReactNode, foot: string) => (
-    <View style={{ flex: 1, height: s(111), backgroundColor: C.white, borderRadius: s(20), padding: s(14), gap: s(6), alignItems: 'flex-end' }}>
+    <View style={{ flex: 1, minHeight: s(111), backgroundColor: C.white, borderRadius: s(20), padding: s(14), gap: s(6), alignItems: 'flex-end' }}>
       <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{label}</Txt>
       {value}
       <Txt style={[ar(500, 12, 18), { color: C.slate2 }]}>{foot}</Txt>
@@ -100,8 +103,11 @@ export function VisitComplete() {
   const nextWait = next ? crowd[next.pavilion_id] ?? next.wait_min : 0;
   const nlvl = levelFor(nextWait);
   const [busy, setBusy] = useState(false);
+  const once = useRef(false);   // a double tap must not send "left" or navigate twice
 
   const goNext = async () => {
+    if (once.current) return;
+    once.current = true;
     setBusy(true);
     await event('left', pid);
     if (next) nav.back('fadeOut');
@@ -111,7 +117,7 @@ export function VisitComplete() {
   return (
     <View style={{ flex: 1, backgroundColor: C.canvas }}>
       <StatusBar style="dark" />
-      <View style={{ position: 'absolute', left: s(121), top: s(92), width: s(160), height: s(160), alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', left: s(121), top: s(72), width: s(160), height: s(160), alignItems: 'center', justifyContent: 'center' }}>
         {[160, 124, 88].map((d, i) => (
           <Animated.View key={d} entering={ZoomIn.delay(i * 90).duration(M.sheet)} style={{ position: 'absolute', width: s(d), height: s(d), borderRadius: s(d / 2), backgroundColor: C.mint, opacity: [0.25, 0.5, 1][i] }} />
         ))}
@@ -120,7 +126,7 @@ export function VisitComplete() {
         </Animated.View>
       </View>
 
-      <Animated.View entering={FadeInDown.delay(150).duration(M.sheet)} style={{ position: 'absolute', top: s(268), left: s(16), right: s(16), alignItems: 'center', gap: s(6) }}>
+      <Animated.View entering={FadeInDown.delay(150).duration(M.sheet)} style={{ position: 'absolute', top: s(244), left: s(16), right: s(16), alignItems: 'center', gap: s(6) }}>
         <Txt style={[ar(700, 28, 38), { textAlign: 'center' }]}>خلصت زيارتك؟</Txt>
         <Txt style={[ar(400, 17, 29), { color: C.slate, textAlign: 'center' }]}>{`قضيت ${spent} د في ${nameOf(pid)}، وانتظرت ${waited} د فقط.`}</Txt>
         {savedByReroutes > 0 && (
@@ -132,8 +138,8 @@ export function VisitComplete() {
       </Animated.View>
 
       {next && (
-        <Animated.View entering={FadeInDown.delay(260).duration(M.sheet)} style={{ position: 'absolute', top: s(420), left: s(16), right: s(16), gap: s(12) }}>
-          <View style={{ height: s(27), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Animated.View entering={FadeInDown.delay(260).duration(M.sheet)} style={{ position: 'absolute', top: s(440), left: s(16), right: s(16), gap: s(12) }}>
+          <View style={{ minHeight: s(27), flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{`المحطة ${done.length + 2} من ${total}`}</Txt>
             <Txt style={ar(600, 17, 27)}>جاهز للمحطة التالية؟</Txt>
           </View>
@@ -204,12 +210,12 @@ export function Summary() {
           <Txt style={[ar(400, 15, 24), { color: C.mint }]}>{`${AR_DAYS[d.getDay()]} ${d.getDate()} ${AR_MONTHS[d.getMonth()]} · إكسبو 2030 الرياض`}</Txt>
         </Animated.View>
         <Animated.View entering={FadeInDown.delay(80).duration(M.sheet)} style={{ flexDirection: 'row', gap: s(10), marginTop: s(10) }}>
-          <View style={{ flex: 115, height: s(84), borderRadius: s(20), backgroundColor: C.aqua, paddingVertical: s(14), paddingRight: s(10), paddingLeft: s(2), gap: s(2), alignItems: 'flex-end' }}>
+          <View style={{ flex: 115, minHeight: s(84), borderRadius: s(20), backgroundColor: C.aqua, paddingVertical: s(14), paddingRight: s(10), paddingLeft: s(2), gap: s(2), alignItems: 'flex-end' }}>
             <Txt style={ar(700, 22, 31)} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t ? hm(t.saved_min) : '—'}</Txt>
             <Txt style={[ar(400, 13, 21), { color: C.deep }]}>انتظار وفّرته</Txt>
           </View>
           {[{ v: t ? `${t.distance_km} كم` : '—', l: 'مشي' }, { v: t ? String(t.pavilions) : '—', l: 'أجنحة' }].map((x) => (
-            <View key={x.l} style={{ flex: 117, height: s(84), borderRadius: s(20), backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: s(1), borderColor: 'rgba(255,255,255,0.14)', padding: s(14), gap: s(2), alignItems: 'flex-end' }}>
+            <View key={x.l} style={{ flex: 117, minHeight: s(84), borderRadius: s(20), backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: s(1), borderColor: 'rgba(255,255,255,0.14)', padding: s(14), gap: s(2), alignItems: 'flex-end' }}>
               <Txt style={[ar(700, 22, 31), { color: C.white }]}>{x.v}</Txt>
               <Txt style={[ar(400, 13, 21), { color: C.mint }]}>{x.l}</Txt>
             </View>

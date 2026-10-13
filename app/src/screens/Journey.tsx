@@ -47,6 +47,8 @@ export default function Journey() {
   const [completed, setCompleted] = useState<Pt[]>([]);      // walked part of the abandoned route
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
+  const arriving = useRef(false);                            // "arrive" navigates once per leg, even on a double tap
+  const [cardH, setCardH] = useState(0);                     // measured height of the bottom card (points)
 
   const stops = route?.stops ?? [];
   const next = stops[0];
@@ -55,7 +57,7 @@ export default function Journey() {
   const total = done.length + stops.length;
 
   // A new leg (back from a visit): start fresh.
-  useEffect(() => { setPhase('active'); setAnchor(undefined); setCompleted([]); setSnap(undefined); }, [done.length]);
+  useEffect(() => { setPhase('active'); setAnchor(undefined); setCompleted([]); setSnap(undefined); arriving.current = false; }, [done.length]);
 
   // ---------- geometry ----------
   const altId = snap?.new?.[0]?.pavilion_id;
@@ -145,7 +147,8 @@ export default function Journey() {
     setPhase('guidance2');
   };
   const arrive = () => {
-    if (!next) return;
+    if (!next || arriving.current) return;
+    arriving.current = true;
     setPhase('approach');
     setTimeout(() => nav.push('Arrived', { pid: next.pavilion_id }, 'moveIn'), 1100);
   };
@@ -184,23 +187,23 @@ export default function Journey() {
 
   // Markers: completed stops, the destination (dark), the rest of today's stops (light).
   const markers: React.ReactNode[] = [];
-  done.forEach((d) => markers.push(<StopDot key={`done-${d.id}`} at={placePoint(d.id)} state="done" />));
+  done.forEach((d, i) => markers.push(<StopDot key={`done-${d.id}-${i}`} at={placePoint(d.id)} state="done" />));
   stops.forEach((st, i) => {
     const id = st.pavilion_id;
     const w = waitOf(id, st.wait_min);
     if (inReroute && id === altId) return;
     if (inReroute && id === crowdedId) {
       const tw = snap?.trigger?.wait_min ?? w;
-      markers.push(<PavilionMarker key={id} at={placePoint(id)} name={nameOf(id)} meta={`${CROWD[levelFor(tw)].word} · ${tw} د`} level={levelFor(tw)} />);
+      markers.push(<PavilionMarker key={`mark-${id}`} at={placePoint(id)} name={nameOf(id)} meta={`${CROWD[levelFor(tw)].word} · ${tw} د`} level={levelFor(tw)} />);
       return;
     }
     if (i === 0) {
       const rising = (phase === 'rising' || phase === 'searching') && alert?.pavilion_id === id;
       const meta = rising ? `يرتفع · ${alert!.wait_min} د` : `${CROWD[levelFor(w)].word} · ${w} د`;
-      markers.push(<NextMarker key={id} at={placePoint(id)} name={nameOf(id)} meta={meta} level={rising ? 'busy' : levelFor(w)} />);
+      markers.push(<NextMarker key={`next-${id}`} at={placePoint(id)} name={nameOf(id)} meta={meta} level={rising ? 'busy' : levelFor(w)} />);
     } else {
       const meta = anchor && i === 1 ? `المحطة ${stopNo + 1} · ${fmtTime(st.arrive_at)}` : `${w} د`;
-      markers.push(<PavilionMarker key={id} at={placePoint(id)} name={nameOf(id)} meta={meta} level={levelFor(w)} />);
+      markers.push(<PavilionMarker key={`mark-${id}`} at={placePoint(id)} name={nameOf(id)} meta={meta} level={levelFor(w)} />);
     }
   });
   if (inReroute && altId) {
@@ -211,18 +214,20 @@ export default function Journey() {
   const heatIds = [...new Set([...stops.slice(0, 3).map((x) => x.pavilion_id), ...(altId ? [altId] : [])])];
   const showInstruction = GUIDING.includes(phase) || phase === 'newRoute' || phase === 'approach';
   const controlsTop = phase === 'active' ? 124 : phase === 'newRoute' || phase === 'approach' ? 330 : 300;
+  // Pills that belong just above the bottom card follow its real height (Arabic lines make it grow).
+  const aboveCard = s(40) + (cardH || s(250)) + s(12);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.mapBg }}>
       <StatusBar style="dark" />
       <MapPlane camY={camY}>
-        <HeatSpot id="plaza" at={{ x: 201, y: 440 }} level="moderate" />
+        <HeatSpot key="heat-plaza" id="plaza" at={{ x: 201, y: 440 }} level="moderate" />
         {heatIds.map((id) => {
           const st = stops.find((x) => x.pavilion_id === id);
           const w = inReroute && id === crowdedId ? snap?.trigger?.wait_min ?? 0 : waitOf(id, st?.wait_min ?? 10);
           // "Crowd hotspot intensifies (800 ms)" as soon as the alert arrives
           const hot = (rising && alert?.pavilion_id === id) || (inReroute && id === crowdedId) || (anchor && id === crowdedId && phase !== 'approach');
-          return <HeatSpot key={id} id={id} at={placePoint(id)} level={hot ? 'busy' : levelFor(w)} />;
+          return <HeatSpot key={`heat-${id}`} id={id} at={placePoint(id)} level={hot ? 'busy' : levelFor(w)} />;
         })}
         {/* walked so far */}
         {completed.length > 1 && <PlainRoute pts={completed} kind="completed" />}
@@ -273,21 +278,21 @@ export default function Journey() {
 
       {/* live alert */}
       {(phase === 'rising' || phase === 'searching' || phase === 'drawing') && (
-        <Animated.View key={phase === 'rising' ? 'r' : 's'} entering={FadeInDown.duration(M.standard)} exiting={FadeOut.duration(M.fast)} style={{ position: 'absolute', top: s(560), left: 0, right: 0, alignItems: 'center' }}>
+        <Animated.View key={phase === 'rising' ? 'r' : 's'} entering={FadeInDown.duration(M.standard)} exiting={FadeOut.duration(M.fast)} style={{ position: 'absolute', bottom: aboveCard, left: 0, right: 0, alignItems: 'center', zIndex: 10 }}>
           <LiveAlert kind={phase === 'rising' ? 'rising' : 'searching'} text={phase === 'rising' ? `الازدحام يرتفع في ${nameOf(next.pavilion_id)}` : 'نبحث عن مسار أفضل…'} />
         </Animated.View>
       )}
 
       {/* capsule above the card after a reroute / on approach */}
       {(phase === 'newRoute' || phase === 'approach') && (
-        <Animated.View key={phase} entering={FadeIn.duration(M.standard)} exiting={FadeOut.duration(M.fast)} style={{ position: 'absolute', left: s(16), top: s(489) }}>
+        <Animated.View key={phase} entering={FadeIn.duration(M.standard)} exiting={FadeOut.duration(M.fast)} style={{ position: 'absolute', left: s(16), bottom: aboveCard, zIndex: 10 }}>
           <JourneyCapsule label={phase === 'approach' ? `وصلت تقريبًا · ${nameOf(next.pavilion_id)}` : `المحطة التالية: ${shortName(next.pavilion_id)}`} total={total} current={stopNo} />
         </Animated.View>
       )}
 
       {/* toast */}
       {toast && (
-        <Animated.View entering={FadeInDown.duration(M.standard)} exiting={FadeOut.duration(M.standard)} style={{ position: 'absolute', top: s(phase === 'newRoute' ? 543 : 160), left: 0, right: 0, alignItems: 'center' }}>
+        <Animated.View entering={FadeInDown.duration(M.standard)} exiting={FadeOut.duration(M.standard)} style={[{ position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 10 }, phase === 'newRoute' ? { bottom: aboveCard + s(56) } : { top: s(160) }]}>
           <Toast text={toast} />
         </Animated.View>
       )}
@@ -298,6 +303,7 @@ export default function Journey() {
           key={phase === 'active' ? 'full' : 'compact'}
           entering={FadeInDown.duration(M.sheet).easing(M.continuity)}
           exiting={FadeOutDown.duration(M.fast)}
+          onLayout={(e) => setCardH(e.nativeEvent.layout.height)}
           style={{ position: 'absolute', left: s(16), right: s(16), bottom: s(40) }}
         >
           <NextStopCard

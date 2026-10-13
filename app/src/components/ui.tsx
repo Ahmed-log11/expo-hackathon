@@ -107,7 +107,7 @@ export function Button({ label, icon, variant = 'primary', size = 'large', onPre
     </>
   );
   const box: ViewStyle = {
-    height: s(height ?? (large ? 56 : 44)), borderRadius: s(large ? 28 : 22), paddingHorizontal: s(padX ?? (large ? 24 : 18)),
+    minHeight: s(height ?? (large ? 56 : 44)), borderRadius: s(large ? 28 : 22), paddingHorizontal: s(padX ?? (large ? 24 : 18)),
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: s(8),
     backgroundColor: down && v.pressed ? v.pressed : v.bg, opacity: disabled ? 0.38 : 1,
     width: width != null ? s(width) : undefined,
@@ -171,7 +171,7 @@ export function Chip({ label, selected, onPress }: { label: string; selected?: b
   return (
     <Pressy onPress={onPress}>
       <View style={{
-        height: s(44), borderRadius: s(22), paddingHorizontal: s(16), flexDirection: 'row', alignItems: 'center', gap: s(6),
+        minHeight: s(44), borderRadius: s(22), paddingHorizontal: s(16), flexDirection: 'row', alignItems: 'center', gap: s(6),
         backgroundColor: selected ? C.mint : C.white, borderWidth: s(selected ? 1.5 : 1), borderColor: selected ? C.aqua : C.line,
       }}>
         <Txt style={[selected ? ar(600, 15, 22) : ar(500, 15, 22), { color: selected ? C.deep : C.ink }]}>{label}</Txt>
@@ -201,7 +201,7 @@ export function CrowdPill({ level, label, size = 'small', style }: { level: Crow
   const small = size === 'small';
   return (
     <View style={[{
-      height: s(small ? 26 : 32), borderRadius: s(small ? 13 : 16), paddingLeft: s(small ? 8 : 10), paddingRight: s(small ? 10 : 12),
+      minHeight: s(small ? 26 : 32), borderRadius: s(small ? 13 : 16), paddingLeft: s(small ? 8 : 10), paddingRight: s(small ? 10 : 12),
       flexDirection: 'row', alignItems: 'center', gap: s(6), backgroundColor: c.bg, alignSelf: 'flex-end',
     }, style]}>
       <Txt style={[small ? ar(600, 13, 19) : ar(600, 15, 22), { color: c.fg }]}>{label}</Txt>
@@ -247,7 +247,7 @@ export function FlowDots({ total, current, variant = 'capsule' }: { total: numbe
 // ---------- shade tag ----------
 export function ShadeTag({ pct }: { pct: number }) {
   return (
-    <View style={{ height: s(25), borderRadius: s(10), backgroundColor: C.mint, paddingHorizontal: s(8), flexDirection: 'row', alignItems: 'center', gap: s(4) }}>
+    <View style={{ minHeight: s(25), borderRadius: s(10), backgroundColor: C.mint, paddingHorizontal: s(8), flexDirection: 'row', alignItems: 'center', gap: s(4) }}>
       <Txt style={[ar(500, 13, 19), { color: C.aquaText }]}>{`مظلل ${pct}%`}</Txt>
       <Icon name="shade" size={14} color={C.aquaText} />
     </View>
@@ -273,7 +273,7 @@ export function MetricsRow({ walk, wait, visit }: { walk: number; wait: number; 
   const div = <View style={{ width: s(1), height: s(40), backgroundColor: C.line }} />;
   return (
     <View style={{
-      height: s(79), borderRadius: s(18), backgroundColor: C.canvas, paddingHorizontal: s(14), paddingVertical: s(12),
+      minHeight: s(79), borderRadius: s(18), backgroundColor: C.canvas, paddingHorizontal: s(14), paddingVertical: s(12),
       flexDirection: 'row', alignItems: 'center', gap: s(12),
     }}>
       <Metric value={visit} label="مدة الزيارة" icon="eye" />
