@@ -58,7 +58,9 @@ If the server doesn't have `/admin/stats` yet (Render before `app` is merged int
 
 Good to know on the day:
 
-- The engine treats the Expo as open 10:00–24:00 Riyadh time. Outside those hours it refuses new visitors, so Simulate shows "the Expo is closed".
+- The engine treats the Expo as open 10:00–24:00 Riyadh time. Outside those hours it refuses new visitors, so Simulate shows "the Expo is closed". This applies to Render too.
+  - To rehearse before 10:00, run `python tools/api_at_time.py 14:00` (a local API with its clock moved to 14:00).
+  - Then open the dashboard with `?api=http://localhost:8000`.
 - Render's free plan sleeps after about 15 idle minutes. Open the dashboard a minute before the pitch so it wakes up.
 - Every push to `main` redeploys Render and wipes its memory (visitors, ledger, offers).
 - Offers go only to phones with the app open, because they arrive over the WebSocket. Simulated visitors fill the ledger but don't receive offers.
