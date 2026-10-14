@@ -4,7 +4,7 @@ B's engine. The API uses only what is exported here:
     import engine
     engine.plan(...), engine.next_stop(...), engine.replan(...), engine.maybe_reroute(...)
 """
-from engine.routing import (OfferError, accept_offer, clear_live_state, crowd_snapshot, decline_offer,  # noqa: F401
+from engine.routing import (OfferError, accept_offer, admin_stats, clear_live_state, crowd_snapshot, decline_offer,  # noqa: F401
                             expected_wait, expire_offers, find_offer, get_route, headroom,
                             mark_left, maybe_reroute, next_stop, opening_hours, plan, record_event, refresh, replan,
                             reset, summary, wait_forecast)

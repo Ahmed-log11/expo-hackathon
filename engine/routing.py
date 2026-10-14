@@ -20,7 +20,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from engine.crowd_state import CrowdState, rate_per_min
-from engine.ledger import Ledger
+from engine.ledger import SLOT_MIN, Ledger
 from engine.site import DEFAULT_START, PAVILIONS, walk
 
 EXACT_MAX = 7              # exact search up to this many stops (7! = 5040 orders, pruned)
@@ -670,3 +670,39 @@ def crowd_snapshot(now: datetime) -> list[dict]:
                     "queue_length": round(wait * rate_per_min(pid)),
                     "status": "low" if wait < 15 else "medium" if wait < 40 else "high"})
     return out
+
+
+# ---------- operator dashboard (admin/, read-only) ----------
+ADMIN_BUCKET_MIN = 15   # the dashboard's ledger view: routed arrivals per 15 minutes...
+ADMIN_BUCKETS = 8       # ...for the next 2 hours
+
+
+def admin_stats(now: datetime) -> dict:
+    """Site-wide numbers for the operator dashboard: visitors, reroute offers, minutes saved,
+    current waits and the ledger's routed arrivals per pavilion for the next 2 hours.
+    Read-only: it books, releases and closes nothing (the ledger lookup is the same lazy
+    one crowd_snapshot does). Counters run since the server started; the demo reset clears
+    the ledger but keeps visitors, so their saved minutes and accepted offers stay."""
+    crowd = crowd_snapshot(now)
+    led = _ledger_for(now)
+    per, s0 = ADMIN_BUCKET_MIN // SLOT_MIN, led.slot(now)
+    routes, metas = list(_routes.values()), list(_meta.values())   # copies: plans may land meanwhile
+    active = sum(1 for r in routes      # inside their planned visit right now
+                 if datetime.fromisoformat(r["generated_at"]) <= now < datetime.fromisoformat(r["end_time"]))
+    accepted = [a for m in metas for a in m.get("accepted", [])]
+    reroute_saved = sum(a["saves_min"] for a in accepted)
+    pavilions = []
+    for c in crowd:
+        arr = led.arrivals[c["pavilion_id"]]
+        routed = [max(0, round(sum(arr[s0 + i * per:s0 + (i + 1) * per]))) for i in range(ADMIN_BUCKETS)]
+        pavilions.append({**c, "routed_next_2h": routed})
+    return {
+        "visitors": {"total": len(routes), "active": active},
+        "offers": {"sent": _offer_seq[0], "open": len(_offers), "accepted": len(accepted),
+                   "accepted_saved_min": reroute_saved},
+        "saved_min_total": sum(m.get("plan_saved", 0) for m in metas) + reroute_saved,
+        "avg_wait_min": round(sum(c["wait_min"] for c in crowd) / len(crowd), 1) if crowd else 0,
+        "bucket_min": ADMIN_BUCKET_MIN,
+        "buckets": [_iso(led.slot_start(s0 + i * per)) for i in range(ADMIN_BUCKETS)],
+        "pavilions": pavilions,
+    }

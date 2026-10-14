@@ -1,0 +1,413 @@
+{
+  "as_of": "2026-10-15T14:02:00+03:00",
+  "visitors": {
+    "total": 72,
+    "active": 72,
+    "connected": 0
+  },
+  "offers": {
+    "sent": 1,
+    "open": 0,
+    "accepted": 1,
+    "accepted_saved_min": 110
+  },
+  "saved_min_total": 178,
+  "avg_wait_min": 24.7,
+  "bucket_min": 15,
+  "buckets": [
+    "2026-10-15T14:00:00+03:00",
+    "2026-10-15T14:15:00+03:00",
+    "2026-10-15T14:30:00+03:00",
+    "2026-10-15T14:45:00+03:00",
+    "2026-10-15T15:00:00+03:00",
+    "2026-10-15T15:15:00+03:00",
+    "2026-10-15T15:30:00+03:00",
+    "2026-10-15T15:45:00+03:00"
+  ],
+  "pavilions": [
+    {
+      "pavilion_id": "th_technology",
+      "wait_min": 25,
+      "queue_length": 750,
+      "status": "medium",
+      "routed_next_2h": [
+        3,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "jp",
+      "wait_min": 31,
+      "queue_length": 465,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "kr",
+      "wait_min": 23,
+      "queue_length": 383,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "de",
+      "wait_min": 36,
+      "queue_length": 420,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "us",
+      "wait_min": 26,
+      "queue_length": 520,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "th_planet",
+      "wait_min": 27,
+      "queue_length": 720,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "sg",
+      "wait_min": 31,
+      "queue_length": 413,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "br",
+      "wait_min": 22,
+      "queue_length": 330,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "no",
+      "wait_min": 19,
+      "queue_length": 190,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "ma",
+      "wait_min": 20,
+      "queue_length": 233,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "th_humanity",
+      "wait_min": 26,
+      "queue_length": 650,
+      "status": "medium",
+      "routed_next_2h": [
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "in",
+      "wait_min": 26,
+      "queue_length": 607,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "eg",
+      "wait_min": 26,
+      "queue_length": 433,
+      "status": "medium",
+      "routed_next_2h": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "id",
+      "wait_min": 19,
+      "queue_length": 253,
+      "status": "medium",
+      "routed_next_2h": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "th_culture",
+      "wait_min": 27,
+      "queue_length": 720,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "fr",
+      "wait_min": 26,
+      "queue_length": 433,
+      "status": "medium",
+      "routed_next_2h": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "it",
+      "wait_min": 32,
+      "queue_length": 480,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        1,
+        2,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "cn",
+      "wait_min": 23,
+      "queue_length": 575,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "bh",
+      "wait_min": 26,
+      "queue_length": 217,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "th_collaboration",
+      "wait_min": 18,
+      "queue_length": 420,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "ae",
+      "wait_min": 23,
+      "queue_length": 460,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "gb",
+      "wait_min": 19,
+      "queue_length": 253,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "ng",
+      "wait_min": 20,
+      "queue_length": 167,
+      "status": "medium",
+      "routed_next_2h": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "pavilion_id": "ksa",
+      "wait_min": 22,
+      "queue_length": 1100,
+      "status": "medium",
+      "routed_next_2h": [
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}
