@@ -3,10 +3,10 @@
  * Screens read from here and call these actions; all decisions come from the backend.
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { backend, CrowdItem, LiveMessage, Offer, Route, Summary, WishItem } from './api';
+import { AdjustPreview, backend, CrowdItem, LiveMessage, Offer, Route, Summary, WishItem } from './api';
 import { nameOf, shortName } from './places';
 
-export type PlanInput = { start: Date; end: Date; tags: string[]; mustVisit: string[]; comfort: string[] };
+export type PlanInput = { start: Date; end: Date; tags: string[]; mustVisit: string[]; comfort: string[]; text: string };
 export type Done = { id: string; wait: number; visit: number; at: Date };
 export type Alert = { pavilion_id: string; wait_min: number; planned_wait_min: number };
 /** When the visitor got into a pavilion, and the wait they saw when they joined its line. */
@@ -33,6 +33,10 @@ type Store = {
   summary?: Summary;
   error?: string;
   createPlan: () => Promise<void>;
+  /** "Adjust my plan": the AI reads the request, the engine previews the new plan. */
+  adjustPlan: (text: string) => Promise<AdjustPreview>;
+  acceptAdjust: (previewId: string) => Promise<'ok' | 'expired' | 'failed'>;
+  cancelAdjust: (previewId: string) => Promise<void>;
   /** 'ok' only after the server accepted; 'expired' (HTTP 410) or 'failed' leave the current route untouched. */
   accept: () => Promise<'ok' | 'expired' | 'failed'>;
   decline: () => Promise<void>;
@@ -58,7 +62,7 @@ function defaultPlan(): PlanInput {
     start.setHours(16, 0, 0, 0);
   }
   const end = new Date(Math.min(start.getTime() + 6 * 3600_000, new Date(start).setHours(24, 0, 0, 0)));
-  return { start, end, tags: ['culture', 'technology'], mustVisit: [], comfort: ['shade', 'less_wait', 'family'] };
+  return { start, end, tags: ['culture', 'technology'], mustVisit: [], comfort: ['shade', 'less_wait', 'family'], text: '' };
 }
 export function dayLabel(d: Date) {
   const t = new Date(); t.setHours(0, 0, 0, 0);
@@ -140,6 +144,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const res = await backend.createVisitor({
         // Picked pavilions only: interest tags would make the server add pavilions the visitor never chose.
         interest_tags: plan.mustVisit.length ? [] : plan.tags, must_visit: plan.mustVisit, language: 'ar',
+        // Their own words go to the AI, which picks matching pavilions (they asked for them, so they're kept).
+        ...(plan.text.trim() ? { interests: plan.text.trim() } : {}),
         start_time: start.toISOString(), end_time: end.toISOString(),
       });
       unsub.current?.();
@@ -171,6 +177,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setAlert(undefined);
     }
   }, [offer, addNote]);
+
+  const adjustPlan = useCallback(async (text: string) => {
+    if (!vidRef.current) throw new Error('no plan');
+    return backend.adjust(vidRef.current, text);
+  }, []);
+
+  const acceptAdjust = useCallback(async (previewId: string): Promise<'ok' | 'expired' | 'failed'> => {
+    if (!vidRef.current) return 'failed';
+    try {
+      const r = await backend.acceptAdjust(vidRef.current, previewId);
+      setRoute(r);
+      addNote({ kind: 'reroute', title: 'عدّلنا خطتك كما طلبت', body: r.stops.slice(0, 3).map((x) => shortName(x.pavilion_id)).join(' ← ') });
+      return 'ok';
+    } catch (e: any) {
+      return e?.status === 410 ? 'expired' : 'failed';
+    }
+  }, [addNote]);
+
+  const cancelAdjust = useCallback(async (previewId: string) => {
+    if (!vidRef.current) return;
+    await backend.cancelAdjust(vidRef.current, previewId).catch(() => {});
+  }, []);
 
   const decline = useCallback(async () => {
     if (!vidRef.current || !offer) return;
@@ -217,8 +245,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<Store>(() => ({
     mode: backend.mode, plan, setPlan: (p) => setPlanState((o) => ({ ...o, ...p })),
     visitorId, route, wishlist, done, entered, crowd, alert, offer, savedByReroutes, notes, favorites, toggleFavorite, summary, error,
-    createPlan, accept, decline, event, triggerCrowd, refreshCrowd, loadSummary, clearAlert: () => setAlert(undefined), resetDay,
-  }), [plan, visitorId, route, wishlist, done, entered, crowd, alert, offer, savedByReroutes, notes, favorites, toggleFavorite, summary, error, createPlan, accept, decline, event, triggerCrowd, refreshCrowd, loadSummary, resetDay]);
+    createPlan, adjustPlan, acceptAdjust, cancelAdjust, accept, decline, event, triggerCrowd, refreshCrowd, loadSummary, clearAlert: () => setAlert(undefined), resetDay,
+  }), [plan, visitorId, route, wishlist, done, entered, crowd, alert, offer, savedByReroutes, notes, favorites, toggleFavorite, summary, error, createPlan, adjustPlan, acceptAdjust, cancelAdjust, accept, decline, event, triggerCrowd, refreshCrowd, loadSummary, resetDay]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

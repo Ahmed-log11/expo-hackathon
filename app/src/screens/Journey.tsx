@@ -14,6 +14,7 @@ import Animated, {
 import { C, K, M, VIEW_H, s, useSafe } from '../theme';
 import { GlassButton, crowdText, levelFor } from '../components/ui';
 import { JourneyCapsule, LiveAlert, NavInstruction, NextStopCard, RerouteCard, Toast } from '../components/journey';
+import { AdjustSheet } from '../components/adjust';
 import { ActiveRoute, CurrentLocation, HeatSpot, MapPlane, NextMarker, PavilionMarker, PlainRoute, Rect, StopDot, labelRect, overlaps } from '../map/MapView';
 import { Pt, placePoint, pointAt, shadedRuns, slice, walkBetween, walkFromPoint } from '../map/route';
 import { useNav } from '../nav/Navigator';
@@ -56,6 +57,7 @@ export default function Journey() {
   phaseRef.current = phase;
   const arriving = useRef(false);                            // "arrive" navigates once per leg, even on a double tap
   const [cardH, setCardH] = useState(0);                     // measured height of the bottom card (points)
+  const [adjusting, setAdjusting] = useState(false);         // "adjust my plan" sheet open
 
   const stops = route?.stops ?? [];
   const next = stops[0];
@@ -166,6 +168,20 @@ export default function Journey() {
     setSnap(undefined);
     setPhase('guidance2');
   };
+  /** The plan changed from the "adjust my plan" sheet: the new route starts from where the visitor is. */
+  const onAdjusted = (message: string) => {
+    setAdjusting(false);
+    if (GUIDING.includes(phase) || phase === 'newRoute') {
+      const here = visitor;
+      setCompleted(leg ? slice(leg, 0, tVis) : []);
+      setAnchor(here);
+      setPhase('newRoute');
+    } else {
+      setPhase('active');
+    }
+    flash(message);
+  };
+  const canAdjust = ['active', 'guidance', 'guidance2', 'newRoute'].includes(phase) && !!next;
   const arrive = () => {
     if (!next || arriving.current) return;
     arriving.current = true;
@@ -313,6 +329,7 @@ export default function Journey() {
       {/* map controls */}
       {!inReroute && (
         <Animated.View layout={layout} style={{ position: 'absolute', left: s(16), top: Math.max(s(controlsTop), safe.top(56) + (topH || s(100)) + s(12)), gap: s(10) }}>
+          {canAdjust && <GlassButton icon="plan" onPress={() => setAdjusting(true)} />}
           <GlassButton icon="locate" />
           <GlassButton icon="crowd" />
           <GlassButton icon="shade" selected />
@@ -367,6 +384,9 @@ export default function Journey() {
           />
         </Animated.View>
       )}
+
+      {/* "adjust my plan" sheet */}
+      <AdjustSheet visible={adjusting} nextId={next?.pavilion_id} onClose={() => setAdjusting(false)} onApplied={onAdjusted} />
 
       {/* reroute card */}
       {(phase === 'offer' || phase === 'confirmed') && snap && (

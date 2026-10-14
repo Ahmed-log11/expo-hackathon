@@ -73,3 +73,32 @@ export function walkMinutes(from: string, to: string) {
   const m = Math.hypot(a.x - b.x, a.y - b.y) * 20;
   return Math.max(1, Math.round(m / 75));
 }
+
+/** Short names people actually say, beyond the official ones (kept in step with llm/adjust.py ALIASES). */
+const ALIASES: Record<string, string[]> = {
+  kr: ['korea', 'كوريا'], us: ['usa', 'america', 'امريكا', 'أمريكا'], gb: ['uk', 'britain', 'england', 'بريطانيا'],
+  ae: ['uae', 'emirates', 'الامارات', 'الإمارات'], ksa: ['saudi', 'السعودية', 'السعودي'], jp: ['japanese', 'ياباني'],
+  cn: ['chinese', 'صيني'], it: ['italian', 'ايطاليا', 'إيطاليا'], fr: ['french', 'فرنسي'], de: ['german', 'ألماني', 'الماني'],
+  in: ['indian', 'هندي'], eg: ['egyptian', 'مصري'],
+};
+
+/** Pavilions named outright in free text ("أحب اليابان", "I love Japan"), in the order they appear.
+ *  Thematic pavilions are left out: their names are topics ("الثقافة"), not choices. Mirrors the API. */
+export function namedIn(text: string): string[] {
+  const t = text.toLowerCase();
+  const found: { id: string; at: number }[] = [];
+  for (const id of PAVILION_IDS) {
+    const p = PLACES[id];
+    if ((p as any).type === 'thematic') continue;
+    const names = [p.name_en.toLowerCase().replace(' pavilion', '').trim(), p.name_ar.replace('جناح', '').trim(), ...(ALIASES[id] ?? [])]
+      .filter((n) => n.length >= 2);
+    let best = -1;
+    for (const n of names) {
+      const esc = n.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
+      const m = new RegExp(`(?<![a-z\u0600-\u06FF])(?:[وبفلك])?${esc}(?![a-z])`).exec(t);
+      if (m && (best < 0 || m.index < best)) best = m.index;
+    }
+    if (best >= 0) found.push({ id, at: best });
+  }
+  return found.sort((a, b) => a.at - b.at).map((x) => x.id);
+}

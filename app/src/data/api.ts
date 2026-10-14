@@ -47,6 +47,13 @@ export type CrowdItem = { pavilion_id: string; wait_min: number; queue_length: n
 /** Expected wait now and in 30/60/90 minutes (GET /pavilions/{id}/forecast). */
 export type ForecastPoint = { minutes: number; at: string; wait_min: number };
 export type BriefStop = { pavilion_id: string; arrive_at: string; wait_min: number };
+/** "Adjust my plan" (POST /visitors/{id}/adjust): what the AI understood and the plan it would give.
+ *  preview_id is null when nothing could be changed; the reply then says what to try. */
+export type AdjustChange = { action: 'remove' | 'add' | 'suggest' | 'end_time'; pavilion_id?: string; kind?: string; time?: string };
+export type AdjustPreview = {
+  preview_id: string | null; visitor_id: string; changes: AdjustChange[]; source: 'llm' | 'fallback' | string;
+  reply: string; old: BriefStop[]; new: BriefStop[]; route: Route | null; expires_at?: string;
+};
 export type Offer = {
   type: 'reroute_offer';
   offer_id: string;
@@ -88,6 +95,10 @@ export interface Backend {
   /** The planner's wait forecast for one pavilion: ML model + latest observation + routed visitors. */
   forecast(pavilionId: string): Promise<ForecastPoint[]>;
   live(vid: string, onMessage: (m: LiveMessage) => void): () => void;
+  /** "Adjust my plan": free text → a preview; nothing changes until acceptAdjust. */
+  adjust(vid: string, text: string): Promise<AdjustPreview>;
+  acceptAdjust(vid: string, previewId: string): Promise<Route>;
+  cancelAdjust(vid: string, previewId: string): Promise<void>;
   /** Demo control: make a pavilion's measured wait jump (POST /debug/observe). */
   spike(pavilionId: string, waitMin: number): Promise<void>;
 }
@@ -114,6 +125,9 @@ function liveBackend(base: string): Backend {
     decline: async (vid, oid) => { await call(`/visitors/${vid}/offers/${oid}/decline`, { method: 'POST' }); },
     crowd: async () => (await call<{ pavilions: CrowdItem[] }>('/crowd')).pavilions,
     forecast: (pid) => call(`/pavilions/${encodeURIComponent(pid)}/forecast`),
+    adjust: (vid, text) => call(`/visitors/${vid}/adjust`, { method: 'POST', body: JSON.stringify({ text }) }),
+    acceptAdjust: (vid, pid) => call(`/visitors/${vid}/adjust/${pid}/accept`, { method: 'POST' }),
+    cancelAdjust: async (vid, pid) => { await call(`/visitors/${vid}/adjust/${pid}/cancel`, { method: 'POST' }); },
     live: (vid, onMessage) => {
       let ws: WebSocket | null = null;
       let closed = false;

@@ -3,7 +3,7 @@
  * (Saudi → Japan → Korea …, then Japan gets crowded and the visitor is offered Korea first, saving 26 min).
  * It answers with exactly the same shapes as the real API, so every screen works the same way in both modes.
  */
-import type { Backend, CrowdItem, LiveMessage, NewVisitor, Offer, Route, Stop, Summary, VisitorCreated } from './api';
+import type { AdjustChange, AdjustPreview, Backend, CrowdItem, LiveMessage, NewVisitor, Offer, Route, Stop, Summary, VisitorCreated } from './api';
 import { PAVILION_IDS, PLACES } from './places';
 
 const STORY = ['ksa', 'jp', 'kr', 'th_planet', 'th_technology'];
@@ -101,6 +101,43 @@ export function mockBackend(): Backend {
       return delay(v.route = o.route, 200);
     },
     async decline(vid) { await delay(null, 120); },
+    async adjust(vid, text): Promise<AdjustPreview> {
+      // Offline stand-in for the AI: the live API reads the request with an LLM (or keywords without a key).
+      const v = visitors[vid];
+      const ids = v.route.stops.map((x) => x.pavilion_id);
+      const t = text.toLowerCase();
+      const changes: AdjustChange[] = [];
+      let next = [...ids];
+      for (const id of PAVILION_IDS) {
+        const p = PLACES[id];
+        const names = [p.name_ar.replace('جناح', '').trim(), (p.name_en ?? '').toLowerCase().replace(' pavilion', '').replace('south ', '')].filter((n) => n.length > 2);
+        const at = names.map((n) => t.indexOf(n.toLowerCase())).find((i) => i >= 0);
+        if (at == null) continue;
+        const before = t.slice(Math.max(0, at - 20), at);
+        if (ids.includes(id) && /(ما أبي|ما ابي|بدون|شيل|احذف|skip|remove|no )/.test(before)) { changes.push({ action: 'remove', pavilion_id: id }); next = next.filter((x) => x !== id); }
+        else if (!ids.includes(id)) { changes.push({ action: 'add', pavilion_id: id }); next = [id, ...next]; }
+      }
+      if (!changes.length && /(تعب|حر|داخلي|مكيف|ارتاح|أرتاح|tired|hot|indoor|rest)/.test(t)) {
+        const pick = PAVILION_IDS.find((id) => !ids.includes(id) && PLACES[id].indoor && (crowd[id] ?? 20) < 15) ?? 'th_planet';
+        changes.push({ action: 'suggest', kind: 'indoor', pavilion_id: pick });
+        next = [pick, ...next];
+      }
+      const brief = (r: Route) => r.stops.map((x) => ({ pavilion_id: x.pavilion_id, arrive_at: x.arrive_at, wait_min: x.wait_min }));
+      if (!changes.length) {
+        return delay({ preview_id: null, visitor_id: vid, changes, source: 'fallback', route: null, old: brief(v.route), new: brief(v.route),
+          reply: 'لم أفهم تعديلًا محددًا. جرّب مثلًا: «تخطَّ جناح اليابان»، «أضف كوريا»، «أنا تعبان».' }, 700);
+      }
+      next = next.slice(0, 5);
+      const route = storyRoute(vid, next, new Date(), new Date(v.route.end_time), v.route.version + 1);
+      const added = next.filter((x) => !ids.includes(x)), removed = ids.filter((x) => !next.includes(x));
+      const reply = [added.length ? `أضفنا ${added.map((x) => PLACES[x].name_ar).join('، ')}` : '', removed.length ? `حذفنا ${removed.map((x) => PLACES[x].name_ar).join('، ')}` : '']
+        .filter(Boolean).join('، و') + '.';
+      const pid = `p_${++offerSeq}`;
+      pendingAdjust[pid] = route;
+      return delay({ preview_id: pid, visitor_id: vid, changes, source: 'fallback', reply, old: brief(v.route), new: brief(route), route }, 900);
+    },
+    async acceptAdjust(vid, pid) { return delay(visitors[vid].route = pendingAdjust[pid], 200); },
+    async cancelAdjust() { await delay(null, 100); },
     async crowd() { return delay(crowdItems(), 100); },
     async forecast(pid) {
       // Offline: shaped like the design's evening rise and fall (the live API returns the model's forecast).
@@ -136,6 +173,7 @@ export function mockBackend(): Backend {
 }
 
 const pendingOffers: Record<string, Offer> = {};
+const pendingAdjust: Record<string, Route> = {};
 let offerSeq = 0;
 
 /** Visit the stop after the crowded one first (Japan ↔ Korea in the design): −26 min. */

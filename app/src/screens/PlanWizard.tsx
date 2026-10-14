@@ -13,7 +13,7 @@ import { C, M, ar, s, sf, useSafe } from '../theme';
 import { Button, Chip, CrowdStatus, Glass, Icon, Pressy, RoundButton, RtlScrollRow, StepProgress, Txt, levelFor } from '../components/ui';
 import { useNav } from '../nav/Navigator';
 import { AR_DAYS, AR_MONTHS, dayLabel, fmtTime, useStore } from '../data/store';
-import { PAVILION_IDS, PLACES, categoryOf, nameOf, photoOf, walkMinutes } from '../data/places';
+import { PAVILION_IDS, PLACES, categoryOf, nameOf, namedIn, photoOf, walkMinutes } from '../data/places';
 import { PHOTOS } from '../assets/images';
 import type { IconName } from '../assets/svg';
 
@@ -246,12 +246,12 @@ export function PlanInterests() {
       scroll
       title="وش تحب تكتشف؟"
       subtitle="اختر اهتمامًا أو أكثر، ونرتّب يومك حولها."
-      footer={<Button label="التالي" disabled={n === 0} style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanMustVisit')} />}
+      footer={<Button label="التالي" disabled={n === 0 && !plan.text.trim()} style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanMustVisit')} />}
     >
       <View style={{ marginTop: s(20), paddingHorizontal: s(16), gap: s(16) }}>
         {/* Selection count sits right above the cards it counts. */}
         <View style={{ minHeight: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: s(6), marginTop: s(-8), marginBottom: s(-4) }}>
-          <Txt style={[ar(600, 13, 19), { color: n === 0 ? C.slate : C.aquaText }]}>{n === 0 ? 'اختر اهتمامًا واحدًا على الأقل' : n === 1 ? 'اهتمام واحد مختار' : n === 2 ? 'اهتمامان مختاران' : `${n} اهتمامات مختارة`}</Txt>
+          <Txt style={[ar(600, 13, 19), { color: n === 0 ? C.slate : C.aquaText }]}>{n === 0 ? 'اختر اهتمامًا أو اكتب ما تحب' : n === 1 ? 'اهتمام واحد مختار' : n === 2 ? 'اهتمامان مختاران' : `${n} اهتمامات مختارة`}</Txt>
           {n > 0 && <View style={{ width: s(18), height: s(18), borderRadius: s(9), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}><Icon name="check" size={12} color={C.ink} /></View>}
         </View>
         {rows.map((row, i) => (
@@ -260,6 +260,22 @@ export function PlanInterests() {
             {row.map((it) => <InterestCard key={it.key} item={it} selected={plan.tags.includes(it.key)} onPress={() => toggle(it.key)} />)}
           </View>
         ))}
+        {/* Their own words: read by the AI, which picks pavilions that match. */}
+        <View style={{ gap: s(8), marginTop: s(4) }}>
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: s(6) }}>
+            <Icon name="plan" size={18} color={C.aquaText} />
+            <Txt style={[ar(600, 15, 22), { color: C.ink }]}>أو اكتب بكلماتك</Txt>
+          </View>
+          <TextInput
+            value={plan.text}
+            onChangeText={(t) => setPlan({ text: t })}
+            placeholder="مثلًا: أحب الفضاء والأكل الياباني، ومعي أطفال"
+            placeholderTextColor={C.muted}
+            multiline
+            maxLength={300}
+            style={{ fontFamily: ar(400, 16).fontFamily, fontSize: s(16), minHeight: s(72), textAlign: 'right', writingDirection: 'rtl', color: C.ink, backgroundColor: C.white, borderRadius: s(18), borderWidth: s(1), borderColor: C.line, paddingHorizontal: s(14), paddingVertical: s(10) }}
+          />
+        </View>
       </View>
     </WizardFrame>
   );
@@ -313,18 +329,19 @@ export function PlanMustVisit() {
   const [filter, setFilter] = useState('mine');
   const [seeded, setSeeded] = useState(0);
   const wanted = useMemo(() => new Set(plan.tags.flatMap((t) => TAG_FOR_INTEREST[t] ?? [])), [plan.tags]);
-  const matches = (id: string) => (PLACES[id].tags ?? []).some((t) => wanted.has(t));
-  // New interests: start with the most popular matching pavilions already picked.
+  // Pavilions they named in their own words ("أحب اليابان") count as chosen.
+  const named = useMemo(() => namedIn(plan.text), [plan.text]);
+  const matches = (id: string) => (PLACES[id].tags ?? []).some((t) => wanted.has(t)) || named.includes(id);
+  // New interests or words: start with named pavilions, then the most popular matching ones, already picked.
   useEffect(() => {
-    const key = plan.tags.join(',');
+    const key = `${plan.tags.join(',')}|${named.join(',')}`;
     if (key === preselectedFor) return;
     preselectedFor = key;
-    const top = PAVILION_IDS.filter(matches)
-      .sort((a, b) => (PLACES[b].popularity ?? 0) - (PLACES[a].popularity ?? 0))
-      .slice(0, PRESELECT);
-    setPlan({ mustVisit: top });
+    const top = PAVILION_IDS.filter((id) => matches(id) && !named.includes(id))
+      .sort((a, b) => (PLACES[b].popularity ?? 0) - (PLACES[a].popularity ?? 0));
+    setPlan({ mustVisit: [...named, ...top].slice(0, Math.max(PRESELECT, named.length)) });
     setSeeded((n) => n + 1);
-  }, [plan.tags]);
+  }, [plan.tags, named]);
   const list = useMemo(() => {
     const score = (id: string) => {
       const p = PLACES[id];

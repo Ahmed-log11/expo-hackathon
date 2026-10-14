@@ -58,8 +58,9 @@ def _catalog(pavilions: list[dict]) -> str:
     )
 
 
-def _clean(items: list[dict], pavilions: list[dict], language: str) -> list[dict]:
-    """Keep valid unique IDs; top up with popular pavilions if too few."""
+def _clean(items: list[dict], pavilions: list[dict], language: str, fill: bool = True) -> list[dict]:
+    """Keep valid unique IDs; top up with popular pavilions if too few (unless fill is False:
+    when the visitor already chose pavilions, fillers would look like choices they never made)."""
     valid = {p["id"].lower(): p["id"] for p in pavilions}   # match case-insensitively, return real ID
     out, seen = [], set()
     for it in items:
@@ -67,7 +68,7 @@ def _clean(items: list[dict], pavilions: list[dict], language: str) -> list[dict
         if pid and pid not in seen:
             seen.add(pid)
             out.append({"pavilion_id": pid, "reason": str(it.get("reason", "")).strip()})
-    if len(out) < MIN_ITEMS:
+    if fill and len(out) < MIN_ITEMS:
         filler = "من الأجنحة الأكثر شعبية" if language == "ar" else "One of the most popular pavilions"
         for p in sorted(pavilions, key=lambda p: -p.get("popularity", 0)):
             if len(out) >= MIN_ITEMS:
@@ -165,14 +166,14 @@ def _fallback(text: str, language: str, pavilions: list[dict]) -> list[dict]:
     return items
 
 
-def extract_wishlist(text: str, language: str, pavilions: list[dict]) -> dict:
+def extract_wishlist(text: str, language: str, pavilions: list[dict], fill: bool = True) -> dict:
     language = "ar" if language == "ar" else "en"
     if os.getenv("ANTHROPIC_API_KEY"):
         try:
-            return {"items": _clean(_llm(text, language, pavilions), pavilions, language), "source": "llm"}
+            return {"items": _clean(_llm(text, language, pavilions), pavilions, language, fill), "source": "llm"}
         except Exception as e:  # network, auth, bad output: never break the request
             log.warning("LLM wishlist failed, using fallback: %s", e)
-    return {"items": _clean(_fallback(text, language, pavilions), pavilions, language), "source": "fallback"}
+    return {"items": _clean(_fallback(text, language, pavilions), pavilions, language, fill), "source": "fallback"}
 
 
 if __name__ == "__main__":

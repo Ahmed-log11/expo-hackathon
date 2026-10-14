@@ -92,8 +92,28 @@ def expected_wait(pid: str, t: datetime, now: datetime | None = None, use_ledger
 
 
 # ---------- search ----------
+DELAY_STEP_MIN = 10
+
+
+def _arrival(wait_at, pid: str, arrive: datetime, end: datetime, cap: float | None) -> tuple[datetime, int]:
+    """When to join pid's line, and the wait then. If cap is given and the line is longer than cap
+    on arrival, try later in DELAY_STEP_MIN steps (free time first, "come back when it's quieter")
+    until it fits, as long as the visit still ends by `end`. Without a cap, go straight in."""
+    wt = round(wait_at(pid, arrive))
+    if cap is None or wt <= cap:
+        return arrive, wt
+    visit, probe = PAVILIONS[pid]["avg_visit_min"], arrive
+    while True:
+        probe += timedelta(minutes=DELAY_STEP_MIN)
+        if probe + timedelta(minutes=visit) > end:
+            return arrive, wt                       # never quiet enough in time: caller rejects it
+        w2 = round(wait_at(pid, probe))
+        if w2 <= cap:
+            return probe, w2
+
+
 def _best_order(wishes: list[str], here: str, t0: datetime, end: datetime, use_ledger: bool,
-                caps: dict[str, float] | None = None):
+                caps: dict[str, float] | None = None, delayable: set[str] = frozenset()):
     """Earliest-finishing feasible order of ALL wishes, or None."""
     fc = Forecast(t0, use_ledger)
     wait_at = fc.wait
@@ -103,8 +123,8 @@ def _best_order(wishes: list[str], here: str, t0: datetime, end: datetime, use_l
 
     def step(cur: str, t: datetime, pid: str) -> tuple[datetime, int, int]:
         w = walk(cur, pid)["minutes"]
-        arrive = t + timedelta(minutes=w)
-        wt = round(wait_at(pid, arrive))
+        arrive, wt = _arrival(wait_at, pid, t + timedelta(minutes=w), end,
+                              cap(pid) if pid in delayable else None)
         leave = arrive + timedelta(minutes=wt + PAVILIONS[pid]["avg_visit_min"])
         return leave, w, wt
 
@@ -162,7 +182,7 @@ def _caps(wishes: list[str], here: str, t0: datetime, end: datetime, use_ledger:
 
     Suggested pavilions: never plan into a queue over MAX_WAIT_MIN; if it's over that at every
     moment of the visit, skip it. Picked pavilions (the visitor chose them): go at the quietest
-    time, allowing up to 10 min over that quietest wait; skip only if even that is over
+    time, allowing up to 15 min / 25% over that quietest wait; skip only if even that is over
     PICKED_MAX_WAIT_MIN."""
     fc, caps, too_busy = Forecast(t0, use_ledger), {}, []
     for pid in wishes:
@@ -174,7 +194,9 @@ def _caps(wishes: list[str], here: str, t0: datetime, end: datetime, use_ledger:
                 break                                # a suggestion only needs one good moment
             t += timedelta(minutes=10)
         if pid in picked:
-            caps[pid] = max(MAX_WAIT_MIN, quietest + 10)
+            # Only worth coming back later if the line is MUCH longer now than at its quietest
+            # (more than 25% and 15 min longer); otherwise go when the route gets there.
+            caps[pid] = max(MAX_WAIT_MIN, quietest + 15, quietest * 1.25)
             limit = PICKED_MAX_WAIT_MIN
         else:
             caps[pid] = MAX_WAIT_MIN
@@ -185,12 +207,15 @@ def _caps(wishes: list[str], here: str, t0: datetime, end: datetime, use_ledger:
 
 
 def _materialize(visitor_id: str, order: list[str], here: str, t: datetime,
-                 end: datetime, use_ledger: bool) -> list[dict]:
+                 end: datetime, use_ledger: bool, caps: dict[str, float] | None = None,
+                 delayable: set[str] = frozenset()) -> list[dict]:
     stops, fc = [], Forecast(t, use_ledger)
     for pid in order:
         w = walk(here, pid)
-        arrive = t + timedelta(minutes=w["minutes"])
-        wait = round(fc.wait(pid, arrive))
+        reach = t + timedelta(minutes=w["minutes"])
+        arrive, wait = _arrival(fc.wait, pid, reach, end,
+                                (caps or {}).get(pid, MAX_WAIT_MIN) if pid in delayable else None)
+        free = round((arrive - reach).total_seconds() / 60)
         visit = PAVILIONS[pid]["avg_visit_min"]
         leave = arrive + timedelta(minutes=wait + visit)
         stops.append({
@@ -198,7 +223,7 @@ def _materialize(visitor_id: str, order: list[str], here: str, t: datetime,
             "walk_from_prev_min": w["minutes"], "arrive_at": _iso(arrive),
             "wait_min": wait, "visit_min": visit, "leave_at": _iso(leave),
             "walk_m": w["meters"], "path": w["path"], "landmarks": w["path"][1:-1],
-            "shaded_pct": w["shaded_pct"],
+            "shaded_pct": w["shaded_pct"], "free_before_min": free,
         })
         here, t = pid, leave
     return stops
@@ -237,11 +262,11 @@ def _route(visitor_id: str, wishes: list[str], here: str, t0: datetime, end: dat
     keep = [w for w in keep if w not in too_busy]
     order = None
     while keep:
-        order = _best_order(keep, here, t0, end, use_ledger, caps)
+        order = _best_order(keep, here, t0, end, use_ledger, caps, picked)
         if order is not None:
             break
         keep = keep[:-1]          # drop the least wanted wish and try again
-    stops = _materialize(visitor_id, order or [], here, t0, end, use_ledger)
+    stops = _materialize(visitor_id, order or [], here, t0, end, use_ledger, caps, picked)
     baseline = _baseline_wait([st["pavilion_id"] for st in stops], here, t0, use_ledger)
 
     if book:
@@ -337,26 +362,76 @@ def _open_wishes(visitor_id: str, route: dict) -> list[str]:
     return [w for w in wishlist if w not in done]
 
 
+def _change_inputs(visitor_id: str, c: dict, now: datetime):
+    """Shared by replan and preview_change: wishes in priority order (added first: the visitor
+    just asked for them), the end time kept inside opening hours, and the added pavilions."""
+    route, meta = _routes[visitor_id], _meta.setdefault(visitor_id, {})
+    removed = set(c.get("remove", []))
+    added = [a for a in dict.fromkeys(c.get("add", [])) if a in PAVILIONS and a not in removed
+             and a not in set(meta.get("done", []))]
+    wishes = list(dict.fromkeys(added + [w for w in _open_wishes(visitor_id, route) if w not in removed]))
+    end = c.get("end_time") or datetime.fromisoformat(route["end_time"])
+    _, end = opening_hours(now, end)
+    return route, meta, removed, added, wishes, end
+
+
 def replan(visitor_id: str, constraints: dict | None = None, now: datetime | None = None) -> dict:
     """Re-plan the remaining stops from the visitor's position.
-    constraints: {"remove": [ids], "add": [ids], "end_time": datetime}"""
+    constraints: {"remove": [ids], "add": [ids], "end_time": datetime}
+    Removals stick for later replans; added pavilions go first and count as picked."""
     route = _routes[visitor_id]
     now = now or datetime.fromisoformat(route["generated_at"])
-    c = constraints or {}
-    meta = _meta.setdefault(visitor_id, {})
-    removed = set(c.get("remove", []))
-    if removed:   # a removal is a decision ("skip Germany"), so it sticks for later replans
-        meta["wishlist"] = [w for w in meta.get("wishlist", []) if w not in removed]
-    if c.get("add"):
-        meta["wishlist"] = list(dict.fromkeys(meta.get("wishlist", []) + list(c["add"])))
-    wishes = [w for w in _open_wishes(visitor_id, route) if w not in removed]
-    end = c.get("end_time") or datetime.fromisoformat(route["end_time"])
+    route, meta, removed, added, wishes, end = _change_inputs(visitor_id, constraints or {}, now)
+    meta["wishlist"] = list(dict.fromkeys(added + [w for w in meta.get("wishlist", []) if w not in removed]))
+    meta["picked"] = list(dict.fromkeys(meta.get("picked", []) + added))
     _ledger_for(now).release(visitor_id, after=now)
     use_ledger = meta.get("use_ledger", True)          # a visitor keeps one mode all day
     new = _route(visitor_id, wishes, _position(visitor_id, route), now, end, wishes,
                  use_ledger, book=use_ledger)
     _routes[visitor_id] = new
     return new
+
+
+def preview_change(visitor_id: str, constraints: dict, now: datetime) -> dict:
+    """What replan(constraints) WOULD produce, without changing anything (route, wishlist,
+    ledger). Used for the "adjust my plan" preview the visitor accepts or cancels."""
+    route, meta, removed, added, wishes, end = _change_inputs(visitor_id, constraints, now)
+    led = _ledger_for(now)
+    old_bookings = list(led.bookings.get(visitor_id, []))
+    old_picked = list(meta.get("picked", []))
+    led.release(visitor_id, after=now)
+    meta["picked"] = list(dict.fromkeys(old_picked + added))
+    try:
+        return _route(visitor_id, wishes, _position(visitor_id, route), now, end, wishes,
+                      meta.get("use_ledger", True), book=False)
+    finally:
+        meta["picked"] = old_picked
+        cut = led.slot(now)
+        for pid, sl, people in old_bookings:
+            if sl >= cut:
+                led._add(pid, sl, people)
+        led.bookings[visitor_id] = old_bookings
+
+
+def suggest_pavilion(visitor_id: str, kind: str, now: datetime, exclude: set[str] = frozenset()) -> str | None:
+    """Best pavilion to add for a request like "something indoor and close" or "somewhere quiet".
+    kind: "indoor" (indoor, close, short wait), "nearby" (closest), "quiet" (shortest wait).
+    Never one already planned, visited or excluded."""
+    route, meta = _routes.get(visitor_id), _meta.get(visitor_id, {})
+    if not route:
+        return None
+    here = _position(visitor_id, route)
+    taken = {st["pavilion_id"] for st in route["stops"]} | set(meta.get("done", [])) | set(exclude)
+    fc, best, best_score = Forecast(now), None, float("inf")
+    for pid, p in PAVILIONS.items():
+        if pid in taken or (kind == "indoor" and not p.get("indoor")):
+            continue
+        w = walk(here, pid)["minutes"]
+        wait = fc.wait(pid, now + timedelta(minutes=w))
+        score = {"nearby": w * 3 + wait, "quiet": wait * 3 + w}.get(kind, w * 2 + wait)
+        if score < best_score:
+            best, best_score = pid, score
+    return best
 
 
 def _alternative(visitor_id: str, now: datetime):

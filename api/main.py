@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import engine  # B's engine (api/engine_mock.py is the old stand-in)  # noqa: E402
+from llm.adjust import describe as describe_change, named_pavilions, understand as understand_change  # noqa: E402
 from llm.wishlist import CHIPS, extract_wishlist, from_chips  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
@@ -209,16 +210,25 @@ def pavilion_forecast(pid: str):
     return engine.wait_forecast(pid, now())
 
 
+def named_in_text(body: NewVisitor) -> list[str]:
+    """Pavilions named outright in the free text count as chosen, like must_visit."""
+    return named_pavilions(body.interests, engine.PAVILIONS) if (body.interests or "").strip() else []
+
+
 def build_wishlist(body: NewVisitor) -> tuple[list[dict], str]:
-    """Picked pavilions first, then what the free text asks for, then interest chips.
+    """Picked pavilions first (must_visit, then ones named in the free text), then what else the
+    free text asks for, then interest chips.
     Each item: {pavilion_id, reason, source}. Returns (items, source of the text part)."""
     ar = body.language == "ar"
     items: list[dict] = [{"pavilion_id": pid, "reason": "اخترته بنفسك" if ar else "You picked it",
                           "source": "picked"} for pid in dict.fromkeys(body.must_visit)]
+    items += [{"pavilion_id": pid, "reason": "ذكرته بالاسم" if ar else "You named it", "source": "picked"}
+              for pid in named_in_text(body)]
     text_source = "none"
     queued = list(engine.PAVILIONS.values())
     if body.interests and body.interests.strip():
-        wl = extract_wishlist(body.interests, body.language, queued)
+        chosen = bool(body.must_visit) or bool(named_in_text(body))
+        wl = extract_wishlist(body.interests, body.language, queued, fill=not chosen)
         text_source = wl["source"]
         items += [{**w, "source": text_source} for w in wl["items"]]
     if body.interest_tags:
@@ -262,7 +272,8 @@ def create_visitor(body: NewVisitor):
     wishlist, text_source = build_wishlist(body)
     vid = "v_" + uuid.uuid4().hex[:10]
     route = engine.plan(vid, [w["pavilion_id"] for w in wishlist], start, end, body.start_point,
-                        group_size=body.group_size, picked=list(body.must_visit))
+                        group_size=body.group_size,
+                        picked=list(dict.fromkeys(list(body.must_visit) + named_in_text(body))))
     visitors[vid] = {"language": body.language, "wishlist": wishlist, "created_at": current.isoformat()}
     return {"visitor_id": vid, "language": body.language, "wishlist": wishlist,
             "wishlist_source": text_source, "route": route}
@@ -300,15 +311,91 @@ def visitor_summary(vid: str):
     return engine.summary(vid, now())
 
 
+PREVIEW_TTL_MIN = 10
+previews: dict[str, dict] = {}   # preview_id -> {visitor_id, constraints, base_version, expires}
+
+
+def _brief(stops: list[dict]) -> list[dict]:
+    return [{"pavilion_id": st["pavilion_id"], "arrive_at": st["arrive_at"], "wait_min": st["wait_min"]}
+            for st in stops]
+
+
 @app.post("/visitors/{vid}/adjust")
 def adjust(vid: str, body: AdjustRequest):
-    """C7 stub: shape only. Returns a fixed preview so the app can build the screen."""
+    """ "Adjust my plan": free text (Arabic or English) -> a PREVIEW of the new plan.
+    The LLM only reads the request; the engine builds the route; nothing changes until
+    the visitor accepts (POST .../adjust/{preview_id}/accept)."""
     v = _visitor(vid)
     route = engine.get_route(vid)
-    explanation = ("هذه معاينة تجريبية؛ ميزة التعديل قيد التطوير." if v["language"] == "ar"
-                   else "Preview only: plan adjustment is not live yet.")
-    return {"preview_id": "p_" + uuid.uuid4().hex[:8], "visitor_id": vid, "tool_calls": [],
-            "explanation": explanation, "route": route}
+    current = now()
+    old_ids = [st["pavilion_id"] for st in route["stops"]]
+    got = understand_change(body.text, v["language"], old_ids, engine.PAVILIONS, current)
+
+    changes, constraints = [], {"remove": [], "add": []}
+    for c in got["changes"]:
+        if c["action"] == "suggest":
+            pid = engine.suggest_pavilion(vid, c["kind"], current, exclude=set(constraints["add"]))
+            if not pid:
+                continue
+            c = {**c, "pavilion_id": pid}
+            constraints["add"].append(pid)
+        elif c["action"] == "add":
+            constraints["add"].append(c["pavilion_id"])
+        elif c["action"] == "remove":
+            constraints["remove"].append(c["pavilion_id"])
+        elif c["action"] == "end_time":
+            h, m = map(int, c["time"].split(":"))
+            end = current.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=h, minutes=m)
+            if end <= current:
+                continue
+            constraints["end_time"] = end
+        changes.append(c)
+
+    lang_key = "name_ar" if v["language"] == "ar" else "name_en"
+    names = {pid: p.get(lang_key, pid) for pid, p in engine.PAVILIONS.items()}
+    if not changes:
+        return {"preview_id": None, "visitor_id": vid, "changes": [], "source": got["source"],
+                "reply": describe_change([], old_ids, old_ids, 0, names, v["language"]),
+                "old": _brief(route["stops"]), "new": _brief(route["stops"]), "route": None}
+
+    cand = engine.preview_change(vid, constraints, current)
+    new_ids = [st["pavilion_id"] for st in cand["stops"]]
+    old_wait = sum(st["wait_min"] for st in route["stops"])
+    saved = old_wait - cand["totals"]["wait_min"] if set(new_ids) == set(old_ids) else 0
+    pid_ = "p_" + uuid.uuid4().hex[:8]
+    previews[pid_] = {"visitor_id": vid, "constraints": constraints, "base_version": route["version"],
+                      "expires": current + timedelta(minutes=PREVIEW_TTL_MIN)}
+    return {"preview_id": pid_, "visitor_id": vid, "changes": changes, "source": got["source"],
+            "reply": describe_change(changes, old_ids, new_ids, max(0, saved), names, v["language"]),
+            "old": _brief(route["stops"]), "new": _brief(cand["stops"]),
+            "expires_at": (current + timedelta(minutes=PREVIEW_TTL_MIN)).isoformat(), "route": cand}
+
+
+def _preview(vid: str, preview_id: str) -> dict:
+    _visitor(vid)
+    p = previews.get(preview_id)
+    if not p or p["visitor_id"] != vid or now() >= p["expires"]:
+        previews.pop(preview_id, None)
+        raise err(410, "preview_unavailable", "This preview expired or no longer exists")
+    return p
+
+
+@app.post("/visitors/{vid}/adjust/{preview_id}/accept")
+def accept_adjust(vid: str, preview_id: str):
+    """Apply the previewed change. Returns the new route (version + 1)."""
+    p = _preview(vid, preview_id)
+    previews.pop(preview_id, None)
+    if engine.get_route(vid)["version"] != p["base_version"]:
+        raise err(410, "preview_stale", "The plan changed since this preview; ask again")
+    return engine.replan(vid, p["constraints"], now())
+
+
+@app.post("/visitors/{vid}/adjust/{preview_id}/cancel")
+def cancel_adjust(vid: str, preview_id: str):
+    """Keep the current plan."""
+    _preview(vid, preview_id)
+    previews.pop(preview_id, None)
+    return {"ok": True}
 
 
 @app.post("/visitors/{vid}/offers/{offer_id}/accept")
