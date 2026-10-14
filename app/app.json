@@ -28,6 +28,18 @@
     "plugins": [
       "expo-font",
       "expo-image"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "17d7dc5d-f790-4df2-a602-f34ff6265cb9"
+      }
+    },
+    "owner": "ahmed_log",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/17d7dc5d-f790-4df2-a602-f34ff6265cb9"
+    }
   }
 }
