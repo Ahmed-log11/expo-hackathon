@@ -70,8 +70,17 @@ export function SiteOverview({ site, crowd, stats, history, onSelect }: {
   return (
     <section className="site-row">
       <article className="card map-card" aria-labelledby="map-title">
-        <h2 id="map-title">{t('mapTitle')}</h2>
-        <p className="muted card-sub">{t('mapSub')}</p>
+        <div className="map-head">
+          <div>
+            <h2 id="map-title">{t('mapTitle')}</h2>
+            <p className="muted card-sub">{t('mapSub')}</p>
+          </div>
+          <ul className="map-key" aria-label="key">
+            {(['low', 'medium', 'high'] as Status[]).map((s) => (
+              <li key={s}><i className={`pill-dot key-${s}`} aria-hidden="true" />{t(s)}</li>
+            ))}
+          </ul>
+        </div>
         <div className="map-box">
           <svg viewBox={`0 ${VIEW_Y0} ${MAP_W} ${VIEW_H}`} role="img" aria-label={t('mapTitle')}>
             <image href={`${import.meta.env.BASE_URL}map/expo-site.png`} x={0} y={0} width={MAP_W} height={874} />
@@ -92,6 +101,7 @@ export function SiteOverview({ site, crowd, stats, history, onSelect }: {
                   aria-label={`${p.name_ar}: ${t('min', { n: fmt(c.wait_min) })}`}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(p.id); } }}
                 >
+                  {c.status === 'high' && !dim && <circle r={DOT_R + 5} className="glow" />}
                   {c.status === 'high' && !dim && <circle r={DOT_R} className="pulse" />}
                   <circle r={DOT_R + 6} className="hit" />
                   <circle r={DOT_R} className="disc" />
@@ -140,17 +150,20 @@ export function SiteOverview({ site, crowd, stats, history, onSelect }: {
                 )}
               </div>
               <div className="district-avg">
-                <StatusPill status={statusOf(d.avg)} wait={d.avg} />
-                <span className="muted">{t('distAvg')}</span>
+                <span className="district-num num">{fmt(d.avg)}<small>{t('kpiUnit')}</small></span>
+                <span className={`pill pill-${statusOf(d.avg)}`}><i className="pill-dot" aria-hidden="true" />{t(statusOf(d.avg))}</span>
               </div>
+              <p className="district-label">{t('distAvg')}</p>
               <div className="seg" aria-hidden="true">
                 {(['high', 'medium', 'low'] as Status[]).map((s) => d.counts[s] > 0 && (
                   <i key={s} className={`seg-${s}`} style={{ flexGrow: d.counts[s] / Math.max(1, n) }} />
                 ))}
               </div>
-              <p className="district-line muted">{t('distCounts', d.counts)}</p>
-              {d.hottest && <p className="district-line">{t('distHottest', { name: d.hottest.name, n: fmt(d.hottest.wait) })}</p>}
-              <p className="district-line muted">{t('distRouted', { n: fmt(d.routed) })}</p>
+              <div className="district-meta">
+                {d.hottest && <p className="district-line hot">{t('distHottest', { name: d.hottest.name, n: fmt(d.hottest.wait) })}</p>}
+                <p className="district-line muted">{t('distCounts', d.counts)}</p>
+                <p className="district-line muted">{t('distRouted', { n: fmt(d.routed) })}</p>
+              </div>
             </article>
           );
         })}
