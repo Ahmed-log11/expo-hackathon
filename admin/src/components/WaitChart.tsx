@@ -23,6 +23,7 @@ function useWidth<T extends HTMLElement>(): [React.RefObject<T>, number] {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    setW(Math.round(el.getBoundingClientRect().width));   // measure now too, not only when a resize is observed
     const ro = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width)));
     ro.observe(el);
     return () => ro.disconnect();

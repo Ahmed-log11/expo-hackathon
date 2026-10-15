@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import type { History } from '../api';
-import { t } from '../strings';
+import type { ApiError, History } from '../api';
+import { errorText, t } from '../strings';
 import { WaitChart, WaitChartKey, type WaitSeries, hasEstimated } from './WaitChart';
 
 /** The site's average wait: the last 2 hours and the model's forecast for the next 90 minutes. */
-export function SiteWaitChart({ history }: { history?: History }) {
+export function SiteWaitChart({ history, error }: { history?: History; error?: ApiError }) {
   const series = useMemo<WaitSeries | undefined>(() => history && {
     as_of: history.as_of,
     points: history.points.map((p) => ({ at: p.at, value: p.avg_wait_min, estimated: p.estimated })),
@@ -20,7 +20,9 @@ export function SiteWaitChart({ history }: { history?: History }) {
         </div>
         <WaitChartKey estimated={hasEstimated(series)} />
       </div>
-      <WaitChart series={series} label={t('chartTitle')} />
+      {!series && error
+        ? <p className="muted chart-empty">{errorText(error)}</p>
+        : <WaitChart series={series} label={t('chartTitle')} />}
     </section>
   );
 }

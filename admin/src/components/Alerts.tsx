@@ -1,6 +1,6 @@
-import type { SiteEvent } from '../api';
+import type { ApiError, SiteEvent } from '../api';
 import { fmt, hhmm } from '../format';
-import { type Key, t } from '../strings';
+import { type Key, errorText, t } from '../strings';
 
 const LEVEL_LABEL: Record<SiteEvent['level'], Key> = {
   critical: 'aiCritical', warning: 'aiWarning', good: 'aiGood', info: 'aiInfo',
@@ -52,8 +52,9 @@ export function EventList({ events, names, onSelect }: {
 }
 
 /** The alerts feed card: what changed on the site in the last 2 hours (GET /admin/events). */
-export function AlertsFeed({ events, names, onSelect }: {
+export function AlertsFeed({ events, error, names, onSelect }: {
   events?: SiteEvent[];
+  error?: ApiError;
   names: Record<string, string>;
   onSelect: (pid: string) => void;
 }) {
@@ -64,7 +65,7 @@ export function AlertsFeed({ events, names, onSelect }: {
         <span className="muted alerts-sub">{t('alertsSub')}</span>
       </div>
       <div className="alerts-scroll">
-        {!events && <p className="muted">{t('connecting')}</p>}
+        {!events && <p className="muted">{error ? errorText(error) : t('connecting')}</p>}
         {events && !events.length && <p className="muted">{t('alertsEmpty')}</p>}
         {events && events.length > 0 && <EventList events={events} names={names} onSelect={onSelect} />}
       </div>

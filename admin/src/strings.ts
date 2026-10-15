@@ -128,6 +128,7 @@ const AR = {
   errClosed: 'المعرض مغلق الآن (يفتح 10:00–24:00)، فلا يمكن بدء زيارات',
   errNetwork: 'تعذّر الوصول إلى الخادم',
   errGeneric: 'خطأ: {msg}',
+  errNotDeployed: 'هذه الميزة غير موجودة على الخادم بعد (تصل مع الدمج في main). للتجربة الآن: أضف ?api=http://localhost:8000 للرابط',
 };
 
 export type Key = keyof typeof AR;
@@ -138,6 +139,7 @@ export const t = (key: Key, vars?: Record<string, string | number>): string =>
 /** A friendly message for a failed request. */
 export function errorText(e: ApiError): string {
   if (e.status === 403) return t('errForbidden');
+  if (e.status === 404 && e.code === 'http_404') return t('errNotDeployed');
   if (e.code === 'outside_opening_hours') return t('errClosed');
   if (e.status === 0) return t('errNetwork');
   return t('errGeneric', { msg: e.message });

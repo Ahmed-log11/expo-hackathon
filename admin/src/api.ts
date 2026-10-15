@@ -118,7 +118,7 @@ async function call<T>(path: string, init: RequestInit = {}, timeoutMs = 25_000)
     const body = await res.json().catch(() => null);
     if (!res.ok) {
       const err = body?.error ?? {};
-      throw new ApiError(res.status, err.code ?? `http_${res.status}`, err.message ?? res.statusText);
+      throw new ApiError(res.status, err.code ?? `http_${res.status}`, err.message ?? (res.statusText || `HTTP ${res.status}`));
     }
     if (body === null) throw new ApiError(res.status, 'bad_response', 'The server sent no JSON');
     return body as T;

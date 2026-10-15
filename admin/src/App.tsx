@@ -130,8 +130,8 @@ export default function App() {
         <Briefing bump={briefBump} />
         <KpiRow stats={stats.data} crowd={crowd.data} />
         <div className="chart-row">
-          <SiteWaitChart history={history.data} />
-          <AlertsFeed events={events.data?.events} names={names} onSelect={setSelected} />
+          <SiteWaitChart history={history.data} error={history.error} />
+          <AlertsFeed events={events.data?.events} error={events.error} names={names} onSelect={setSelected} />
         </div>
         {site && <SiteOverview site={site} crowd={crowdById} stats={stats.data} history={history.data} onSelect={setSelected} />}
         {site ? (
