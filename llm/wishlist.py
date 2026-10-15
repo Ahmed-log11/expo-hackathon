@@ -114,7 +114,9 @@ _SYN = {
 }
 _WORD_TAG = {w: tag for tag, words in _SYN.items() for w in words.split()}
 
-_AR = {  # Arabic keyword -> English word (then mapped through _WORD_TAG)
+_AR = {  # Arabic keyword -> English word (then mapped through _WORD_TAG); stems catch plurals/forms
+    "تقني": "technology", "خضر": "green", "مستقبل": "future", "ابتكار": "innovation", "علوم": "science",
+    "طبخ": "food", "مطاعم": "food", "رسم": "art", "متاحف": "museum", "تفاعل": "interactive", "أطفال": "kids",
     "تقنية": "technology", "تكنولوجيا": "technology", "روبوت": "robotics", "فضاء": "space",
     "تاريخ": "history", "آثار": "archaeology", "تراث": "heritage", "ثقافة": "culture",
     "طبيعة": "nature", "بيئة": "sustainability", "استدامة": "sustainability", "طاقة": "energy",

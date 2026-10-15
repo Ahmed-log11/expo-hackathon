@@ -242,6 +242,25 @@ def build_wishlist(body: NewVisitor) -> tuple[list[dict], str]:
     return picked + [i for i in out if i["source"] != "picked"][:max(0, MAX_WISHES - len(picked))], text_source
 
 
+class WishlistRequest(BaseModel):
+    interests: str = Field(min_length=2, max_length=1000)
+    language: Literal["ar", "en"] = "en"
+
+
+@app.post("/wishlist")
+def wishlist_preview(body: WishlistRequest):
+    """What the AI reads in the visitor's own words, BEFORE a plan exists, so the app can show
+    it as choices (wizard step 3). Pavilions named outright come first. Nothing is created.
+    Each item: {pavilion_id, reason, source}; source = "named", "llm" or "fallback"."""
+    ar = body.language == "ar"
+    named = named_pavilions(body.interests, engine.PAVILIONS)
+    wl = extract_wishlist(body.interests, body.language, list(engine.PAVILIONS.values()), fill=False)
+    items = [{"pavilion_id": pid, "reason": "ذكرته بالاسم" if ar else "You named it", "source": "named"}
+             for pid in named]
+    items += [{**w, "source": wl["source"]} for w in wl["items"] if w["pavilion_id"] not in named]
+    return {"items": items[:MAX_WISHES], "source": wl["source"]}
+
+
 @app.post("/visitors", status_code=201)
 def create_visitor(body: NewVisitor):
     if body.start_point not in engine.POINTS:

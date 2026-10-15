@@ -6,7 +6,9 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AdjustPreview, backend, CrowdItem, LiveMessage, Offer, Route, Summary, WishItem } from './api';
 import { nameOf, shortName } from './places';
 
-export type PlanInput = { start: Date; end: Date; tags: string[]; mustVisit: string[]; comfort: string[]; text: string };
+export type PlanInput = { start: Date; end: Date; tags: string[]; mustVisit: string[]; comfort: string[]; text: string;
+  /** The AI's reading of `text` (step 3): suggested pavilions and the text they were computed for. */
+  aiIds: string[]; aiFor: string };
 export type Done = { id: string; wait: number; visit: number; at: Date };
 export type Alert = { pavilion_id: string; wait_min: number; planned_wait_min: number };
 /** When the visitor got into a pavilion, and the wait they saw when they joined its line. */
@@ -62,7 +64,7 @@ function defaultPlan(): PlanInput {
     start.setHours(16, 0, 0, 0);
   }
   const end = new Date(Math.min(start.getTime() + 6 * 3600_000, new Date(start).setHours(24, 0, 0, 0)));
-  return { start, end, tags: ['culture', 'technology'], mustVisit: [], comfort: ['shade', 'less_wait', 'family'], text: '' };
+  return { start, end, tags: ['culture', 'technology'], mustVisit: [], comfort: ['shade', 'less_wait', 'family'], text: '', aiIds: [], aiFor: '' };
 }
 export function dayLabel(d: Date) {
   const t = new Date(); t.setHours(0, 0, 0, 0);
@@ -144,8 +146,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const res = await backend.createVisitor({
         // Picked pavilions only: interest tags would make the server add pavilions the visitor never chose.
         interest_tags: plan.mustVisit.length ? [] : plan.tags, must_visit: plan.mustVisit, language: 'ar',
-        // Their own words go to the AI, which picks matching pavilions (they asked for them, so they're kept).
-        ...(plan.text.trim() ? { interests: plan.text.trim() } : {}),
+        // Their own words go to the AI, unless step 3 already showed its reading as choices:
+        // then the ticked pavilions are exactly what they want, and nothing else is added.
+        ...(plan.text.trim() && plan.aiFor !== plan.text.trim() ? { interests: plan.text.trim() } : {}),
         start_time: start.toISOString(), end_time: end.toISOString(),
       });
       unsub.current?.();

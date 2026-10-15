@@ -95,6 +95,8 @@ export interface Backend {
   /** The planner's wait forecast for one pavilion: ML model + latest observation + routed visitors. */
   forecast(pavilionId: string): Promise<ForecastPoint[]>;
   live(vid: string, onMessage: (m: LiveMessage) => void): () => void;
+  /** What the AI reads in the visitor's own words, before any plan exists (wizard step 3). */
+  previewWishlist(text: string, language: 'ar' | 'en'): Promise<{ items: WishItem[]; source: string }>;
   /** "Adjust my plan": free text → a preview; nothing changes until acceptAdjust. */
   adjust(vid: string, text: string): Promise<AdjustPreview>;
   acceptAdjust(vid: string, previewId: string): Promise<Route>;
@@ -125,6 +127,7 @@ function liveBackend(base: string): Backend {
     decline: async (vid, oid) => { await call(`/visitors/${vid}/offers/${oid}/decline`, { method: 'POST' }); },
     crowd: async () => (await call<{ pavilions: CrowdItem[] }>('/crowd')).pavilions,
     forecast: (pid) => call(`/pavilions/${encodeURIComponent(pid)}/forecast`),
+    previewWishlist: (text, language) => call('/wishlist', { method: 'POST', body: JSON.stringify({ interests: text, language }) }),
     adjust: (vid, text) => call(`/visitors/${vid}/adjust`, { method: 'POST', body: JSON.stringify({ text }) }),
     acceptAdjust: (vid, pid) => call(`/visitors/${vid}/adjust/${pid}/accept`, { method: 'POST' }),
     cancelAdjust: async (vid, pid) => { await call(`/visitors/${vid}/adjust/${pid}/cancel`, { method: 'POST' }); },

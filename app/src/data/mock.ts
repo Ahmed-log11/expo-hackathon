@@ -4,7 +4,7 @@
  * It answers with exactly the same shapes as the real API, so every screen works the same way in both modes.
  */
 import type { AdjustChange, AdjustPreview, Backend, CrowdItem, LiveMessage, NewVisitor, Offer, Route, Stop, Summary, VisitorCreated } from './api';
-import { PAVILION_IDS, PLACES } from './places';
+import { PAVILION_IDS, PLACES, namedIn } from './places';
 
 const STORY = ['ksa', 'jp', 'kr', 'th_planet', 'th_technology'];
 // Timings from the design (Plan — Ready): minutes after the start, waits, walks, visits, shade.
@@ -101,6 +101,21 @@ export function mockBackend(): Backend {
       return delay(v.route = o.route, 200);
     },
     async decline(vid) { await delay(null, 120); },
+    async previewWishlist(text) {
+      // Offline stand-in for the AI: names in the text, then pavilions whose tags appear in it.
+      const t = text.toLowerCase();
+      const named = namedIn(text);
+      const words: Record<string, string[]> = {
+        technology: ['تقني', 'tech', 'ذكاء', 'روبوت', 'فضاء', 'ابتكار'], planet: ['طاقة', 'خضر', 'بيئة', 'استدامة', 'طبيعة', 'green', 'energy'],
+        culture: ['ثقاف', 'تاريخ', 'فن', 'أكل', 'طعام', 'culture', 'art', 'food'], humanity: ['أطفال', 'صحة', 'تعليم', 'kids'],
+      };
+      const hit = Object.keys(words).filter((k) => words[k].some((w) => t.includes(w)));
+      const tagged = PAVILION_IDS.filter((id) => !named.includes(id) && (PLACES[id].tags ?? []).some((g) => hit.includes(g)))
+        .sort((a, b) => (PLACES[b].popularity ?? 0) - (PLACES[a].popularity ?? 0));
+      const items = [...named.map((id) => ({ pavilion_id: id, reason: 'ذكرته بالاسم', source: 'named' })),
+        ...tagged.map((id) => ({ pavilion_id: id, reason: 'يناسب كلامك', source: 'fallback' }))].slice(0, 8);
+      return delay({ items, source: 'fallback' }, 600);
+    },
     async adjust(vid, text): Promise<AdjustPreview> {
       // Offline stand-in for the AI: the live API reads the request with an LLM (or keywords without a key).
       const v = visitors[vid];

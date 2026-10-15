@@ -4,7 +4,7 @@
  * Every value (positions, sizes, colours, type) comes from the Figma frames on the Prototype page.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View,TextInput } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View, TextInput } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,7 +13,8 @@ import { C, M, ar, s, sf, useSafe } from '../theme';
 import { Button, Chip, CrowdStatus, Glass, Icon, Pressy, RoundButton, RtlScrollRow, StepProgress, Txt, levelFor } from '../components/ui';
 import { useNav } from '../nav/Navigator';
 import { AR_DAYS, AR_MONTHS, dayLabel, fmtTime, useStore } from '../data/store';
-import { PAVILION_IDS, PLACES, categoryOf, nameOf, namedIn, photoOf, walkMinutes } from '../data/places';
+import { PAVILION_IDS, PLACES, categoryOf, nameOf, namedIn, photoOf, shortName, walkMinutes } from '../data/places';
+import { backend } from '../data/api';
 import { PHOTOS } from '../assets/images';
 import type { IconName } from '../assets/svg';
 
@@ -245,26 +246,15 @@ export function PlanInterests() {
       step={2}
       scroll
       title="وش تحب تكتشف؟"
-      subtitle="اختر اهتمامًا أو أكثر، ونرتّب يومك حولها."
+      subtitle="اكتب ما تحب أو اختر اهتماماتك، ونرتّب يومك حولها."
       footer={<Button label="التالي" disabled={n === 0 && !plan.text.trim()} style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanMustVisit')} />}
     >
       <View style={{ marginTop: s(20), paddingHorizontal: s(16), gap: s(16) }}>
-        {/* Selection count sits right above the cards it counts. */}
-        <View style={{ minHeight: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: s(6), marginTop: s(-8), marginBottom: s(-4) }}>
-          <Txt style={[ar(600, 13, 19), { color: n === 0 ? C.slate : C.aquaText }]}>{n === 0 ? 'اختر اهتمامًا أو اكتب ما تحب' : n === 1 ? 'اهتمام واحد مختار' : n === 2 ? 'اهتمامان مختاران' : `${n} اهتمامات مختارة`}</Txt>
-          {n > 0 && <View style={{ width: s(18), height: s(18), borderRadius: s(9), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}><Icon name="check" size={12} color={C.ink} /></View>}
-        </View>
-        {rows.map((row, i) => (
-          // Row order in Figma is left → right; the first interest sits on the right (RTL).
-          <View key={i} style={{ flexDirection: 'row-reverse', gap: s(16) }}>
-            {row.map((it) => <InterestCard key={it.key} item={it} selected={plan.tags.includes(it.key)} onPress={() => toggle(it.key)} />)}
-          </View>
-        ))}
-        {/* Their own words: read by the AI, which picks pavilions that match. */}
-        <View style={{ gap: s(8), marginTop: s(4) }}>
+        {/* Their own words: read by the AI, which picks pavilions that match. First on the page. */}
+        <View style={{ gap: s(8) }}>
           <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: s(6) }}>
             <Icon name="plan" size={18} color={C.aquaText} />
-            <Txt style={[ar(600, 15, 22), { color: C.ink }]}>أو اكتب بكلماتك</Txt>
+            <Txt style={[ar(600, 15, 22), { color: C.ink }]}>اكتب ما تحب بكلماتك</Txt>
           </View>
           <TextInput
             value={plan.text}
@@ -276,6 +266,19 @@ export function PlanInterests() {
             style={{ fontFamily: ar(400, 16).fontFamily, fontSize: s(16), minHeight: s(72), textAlign: 'right', writingDirection: 'rtl', color: C.ink, backgroundColor: C.white, borderRadius: s(18), borderWidth: s(1), borderColor: C.line, paddingHorizontal: s(14), paddingVertical: s(10) }}
           />
         </View>
+        {/* ...or pick from the interest cards */}
+        <Txt style={[ar(600, 15, 22), { color: C.ink, textAlign: 'right', marginTop: s(4) }]}>أو اختر من الاهتمامات</Txt>
+        {/* Selection count sits right above the cards it counts. */}
+        <View style={{ minHeight: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: s(6), marginTop: s(-8), marginBottom: s(-4) }}>
+          <Txt style={[ar(600, 13, 19), { color: n === 0 ? C.slate : C.aquaText }]}>{n === 0 ? 'اختر اهتمامًا أو اكتب ما تحب' : n === 1 ? 'اهتمام واحد مختار' : n === 2 ? 'اهتمامان مختاران' : `${n} اهتمامات مختارة`}</Txt>
+          {n > 0 && <View style={{ width: s(18), height: s(18), borderRadius: s(9), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}><Icon name="check" size={12} color={C.ink} /></View>}
+        </View>
+        {rows.map((row, i) => (
+          // Row order in Figma is left → right; the first interest sits on the right (RTL).
+          <View key={i} style={{ flexDirection: 'row-reverse', gap: s(16) }}>
+            {row.map((it) => <InterestCard key={it.key} item={it} selected={plan.tags.includes(it.key)} onPress={() => toggle(it.key)} />)}
+          </View>
+        ))}
       </View>
     </WizardFrame>
   );
@@ -320,6 +323,7 @@ const TAG_FOR_INTEREST: Record<string, string[]> = {
   technology: ['technology'], culture: ['culture'], planet: ['planet'], humanity: ['humanity'], collaboration: ['collaboration'],
 };
 const PRESELECT = 6;
+const AI_PRESELECT = 4;   // how many of the AI's suggestions start ticked (named pavilions always are)
 /** The interests we last pre-selected pavilions for; going back and forth keeps the visitor's edits. */
 let preselectedFor = '';
 
@@ -329,19 +333,39 @@ export function PlanMustVisit() {
   const [filter, setFilter] = useState('mine');
   const [seeded, setSeeded] = useState(0);
   const wanted = useMemo(() => new Set(plan.tags.flatMap((t) => TAG_FOR_INTEREST[t] ?? [])), [plan.tags]);
-  // Pavilions they named in their own words ("أحب اليابان") count as chosen.
+  // Their own words: pavilions named outright count as chosen right away; the AI's wider reading
+  // (POST /wishlist) arrives a moment later and is offered as choices too.
+  const text = plan.text.trim();
   const named = useMemo(() => namedIn(plan.text), [plan.text]);
-  const matches = (id: string) => (PLACES[id].tags ?? []).some((t) => wanted.has(t)) || named.includes(id);
-  // New interests or words: start with named pavilions, then the most popular matching ones, already picked.
+  const [reading, setReading] = useState(false);
   useEffect(() => {
-    const key = `${plan.tags.join(',')}|${named.join(',')}`;
+    if (!text || plan.aiFor === text) return;
+    let live = true;
+    setReading(true);
+    backend.previewWishlist(text, 'ar')
+      .then((r) => live && setPlan({ aiIds: r.items.map((i) => i.pavilion_id).filter((id) => PLACES[id]), aiFor: text }))
+      .catch(() => live && setPlan({ aiIds: [], aiFor: text }))   // offline: the named ones still count
+      .finally(() => live && setReading(false));
+    return () => { live = false; };
+  }, [text]);
+  const ai = useMemo(() => (text && plan.aiFor === text ? plan.aiIds.filter((id) => !named.includes(id)) : []),
+    [text, plan.aiFor, plan.aiIds, named]);
+  const fromWords = [...named, ...ai];
+  const matches = (id: string) => (PLACES[id].tags ?? []).some((t) => wanted.has(t)) || fromWords.includes(id);
+  // New interests or words: start with what their words asked for, then the most popular matching ones, already picked.
+  useEffect(() => {
+    const key = `${plan.tags.join(',')}|${fromWords.join(',')}`;
     if (key === preselectedFor) return;
     preselectedFor = key;
-    const top = PAVILION_IDS.filter((id) => matches(id) && !named.includes(id))
+    const top = PAVILION_IDS.filter((id) => matches(id) && !fromWords.includes(id))
       .sort((a, b) => (PLACES[b].popularity ?? 0) - (PLACES[a].popularity ?? 0));
-    setPlan({ mustVisit: [...named, ...top].slice(0, Math.max(PRESELECT, named.length)) });
+    // Named pavilions are always ticked; of the AI's other suggestions, only the best few
+    // (a day fits ~3-5 stops). The rest stay listed, unticked, ready to add.
+    const aiTicked = ai.slice(0, Math.max(0, AI_PRESELECT - named.length));
+    const ticked = [...named, ...aiTicked];
+    setPlan({ mustVisit: [...ticked, ...top].slice(0, Math.min(8, Math.max(PRESELECT, ticked.length))) });
     setSeeded((n) => n + 1);
-  }, [plan.tags, named]);
+  }, [plan.tags, fromWords.join(',')]);
   const list = useMemo(() => {
     const score = (id: string) => {
       const p = PLACES[id];
@@ -378,6 +402,24 @@ export function PlanMustVisit() {
         <RtlScrollRow>
           {FILTERS.map((f) => <Chip key={f.key} label={f.label} selected={filter === f.key} onPress={() => setFilter(f.key)} />)}
         </RtlScrollRow>
+        {/* What the AI read in their own words (step 2's text box) */}
+        {!!text && (
+          <View style={{ marginHorizontal: s(16), flexDirection: 'row-reverse', alignItems: 'center', gap: s(10), backgroundColor: C.mintSoft, borderRadius: s(18), borderWidth: s(1), borderColor: 'rgba(32,205,184,0.35)', paddingHorizontal: s(14), paddingVertical: s(10) }}>
+            {reading ? <ActivityIndicator color={C.aquaText} /> : <Icon name="plan" size={20} color={C.aquaText} />}
+            <View style={{ flex: 1, alignItems: 'flex-end', gap: s(2) }}>
+              <Txt style={[ar(700, 14, 21), { color: C.aquaText }]}>
+                {reading ? 'نقرأ كلامك…'
+                  : fromWords.length ? `اقترحنا ${fromWords.length} من كلامك${fromWords.length > AI_PRESELECT ? `، واخترنا لك أفضل ${Math.max(AI_PRESELECT, named.length)}` : ''}`
+                  : 'ما لقينا أجنحة تطابق كلامك'}
+              </Txt>
+              {!reading && (
+                <Txt style={[ar(400, 13, 20), { color: C.ink }]} numberOfLines={2}>
+                  {fromWords.length ? `${fromWords.slice(0, 4).map(shortName).join('، ')}${fromWords.length > 4 ? '…' : ''} — اختر أو أزل ما تريد` : 'اختر من القائمة بالأسفل'}
+                </Txt>
+              )}
+            </View>
+          </View>
+        )}
         <View style={{ marginHorizontal: s(16), minHeight: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Txt style={[ar(600, 13, 19), { color: C.aquaText }]}>{`${plan.mustVisit.length} مختارة`}</Txt>
           <Txt style={ar(600, 17, 27)}>اقتراحات حسب اهتماماتك</Txt>

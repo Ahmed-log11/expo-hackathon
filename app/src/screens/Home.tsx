@@ -103,7 +103,6 @@ export function Home() {
   const { crowd, plan, refreshCrowd } = useStore();
   const camY = useSharedValue(0);
   const vx = useSharedValue(232), vy = useSharedValue(470), va = useSharedValue(-90);
-  const hours = Math.max(1, Math.round((plan.end.getTime() - plan.start.getTime()) / 3600_000));
   const waits = Object.values(crowd);
   const avg = waits.length ? waits.reduce((a, b) => a + b, 0) / waits.length : 18;
   const overall = levelFor(avg);
@@ -201,7 +200,7 @@ export function Home() {
           <Icon name="pin" size={16} color={C.aquaText} />
         </View>
         <Animated.View key={busy ? 'h' : 'd'} entering={FadeIn.duration(M.standard)} style={{ gap: s(2) }}>
-          <Txt style={ar(700, 22, 31)}>{busy ? 'الزحمة مرتفعة الآن' : `عندك ${hours} ساعات في إكسبو؟`}</Txt>
+          <Txt style={ar(700, 22, 31)}>{busy ? 'الزحمة مرتفعة الآن' : 'كم ساعة عندك في إكسبو؟'}</Txt>
           <Txt style={[ar(400, 15, 24), { color: C.slate }]}>{busy ? 'نبدأ يومك من الأجنحة الهادئة، ونرجع للمزدحمة لما يخف الازدحام.' : 'نبني لك أفضل مسار حسب الزحمة الآن.'}</Txt>
         </Animated.View>
         <Button label="خطط يومي" icon="plan" onPress={openPlan} />
