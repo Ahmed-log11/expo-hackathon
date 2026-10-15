@@ -1,8 +1,9 @@
 /**
- * The ledger heatmap's colour: one hue (brand teal), light -> dark = few -> many routed visitors.
- * Lightness steps are monotone and >= 0.06 apart (checked with the dataviz palette validator).
+ * The ledger heatmap's colour: one hue (brand mint -> aqua -> deep teal), light -> dark = few -> many
+ * routed visitors. Lightness is monotone; the curve below keeps typical loads light so peaks stand out.
  */
-const RAMP = ['#DDF5EF', '#A6E6D8', '#5FD0BD', '#20AE9B', '#0F8577', '#0A5E56', '#073C3A'];
+const RAMP = ['#EEF9F6', '#D7F4EE', '#B1EADF', '#77D8C8', '#2FBBA8', '#11857A', '#073C3A'];
+const CURVE = 1.9;   // > 1: mid values stay light; only the genuinely busiest slots reach deep teal
 const INK = '#102624';
 
 /** Scale floor: a handful of bookings shouldn't already look "full". */
@@ -30,7 +31,7 @@ function at(t: number): RGB {
 /** Fill and text colour for a cell holding `v` visitors on a 0..max scale (null when empty). */
 export function heatFill(v: number, max: number): { bg: string; fg: string } | null {
   if (v <= 0) return null;
-  const c = at(0.12 + 0.88 * Math.min(1, v / max));   // anything booked sits visibly above empty
+  const c = at(0.08 + 0.92 * Math.min(1, v / max) ** CURVE);   // anything booked sits visibly above empty
   const l = luminance(c);
   const vsInk = (l + 0.05) / (luminance(rgb(INK)) + 0.05);
   const vsWhite = 1.05 / (l + 0.05);
