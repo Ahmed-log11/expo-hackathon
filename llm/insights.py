@@ -120,7 +120,8 @@ def _llm(focus: str, language: str, facts: dict) -> dict:
         max_tokens=2000,
         system=SYSTEM.format(lo=3, hi=MAX_ITEMS, lang_name="Modern Standard Arabic" if ar else "English",
                              name_key="name_ar" if ar else "name_en"),
-        output_config={"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
+        # No "effort" here: Render runs LLM_MODEL=claude-haiku-4-5, which rejects it.
+        output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
         messages=[{
             "role": "user",
             "content": f"<focus>{focus}: {FOCUSES[focus]}</focus>\n\n<facts>\n"
