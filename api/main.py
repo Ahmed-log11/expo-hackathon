@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -144,7 +144,12 @@ def seed_simulated_visitors() -> None:
 
 async def history_loop() -> None:
     """Operator dashboard: remember every pavilion's wait once a minute (engine/insights.py),
-    so the briefing can say what got busier than 30 minutes ago. Read-only for the engine."""
+    so the briefing can say what got busier than 30 minutes ago. Read-only for the engine.
+    After a (re)start the last 2 hours are estimated first, so the chart isn't empty."""
+    try:
+        await asyncio.to_thread(admin_insights_data.backfill, now())
+    except Exception:
+        log.exception("wait history: backfill failed")
     while True:
         try:
             await asyncio.to_thread(admin_insights_data.record, now())
@@ -491,6 +496,14 @@ def _insights(focus: str, lang: str, refresh: bool) -> dict:
     stats = engine.admin_stats(current)
     stats["visitors"]["connected"] = len(live.conns)
     return insight_briefing(focus, lang, admin_insights_data.facts(current, stats), refresh)
+
+
+@app.get("/admin/history")
+def admin_history(minutes: int = Query(120, ge=15, le=180)):
+    """Operator dashboard: the site's average wait over the last `minutes` (`points`, one a minute;
+    `estimated: true` for the 2 hours estimated after a restart), the forecast average for the
+    next 90 minutes (`forecast`), and per pavilion the change vs 30 minutes ago (`trend`). Read-only."""
+    return admin_insights_data.series(now(), minutes)
 
 
 @app.get("/admin/insights")

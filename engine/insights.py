@@ -3,6 +3,8 @@ Operator insights for the admin dashboard (admin/). Read-only: nothing here book
 or observes anything.
 
     record(now)          keep one wait snapshot per minute for the last 3 hours (memory only)
+    backfill(now)        on an empty history, estimate the last 2 hours (marked estimated)
+    series(now)          site average wait history + forecast + per-pavilion trend (GET /admin/history)
     facts(now, stats)    the numbers the AI briefing is written from (llm/insights.py)
 
 The briefing must never invent numbers, so everything it may say is computed here: waits now,
@@ -27,7 +29,12 @@ FORECAST_STEPS_MIN = (30, 60, 90)
 RISE_MIN = 8               # a change smaller than this (minutes of wait) is noise
 ABOVE_NORMAL_MIN = 10      # this much above the usual wait for the hour counts as unusual
 
-_history: deque[tuple[datetime, dict[str, int]]] = deque(maxlen=HISTORY_MIN * 60 // SAMPLE_S)
+BACKFILL_MIN = 120         # after a (re)start, estimate this much past...
+BACKFILL_STEP_MIN = 5      # ...at this resolution
+SERIES_FORECAST_MIN = range(0, 91, 10)
+
+Sample = tuple[datetime, dict[str, int], bool]   # (time, wait per pavilion, estimated)
+_history: deque[Sample] = deque(maxlen=HISTORY_MIN * 60 // SAMPLE_S)
 
 
 def record(now: datetime, crowd: list[dict] | None = None) -> None:
@@ -35,14 +42,56 @@ def record(now: datetime, crowd: list[dict] | None = None) -> None:
     if _history and (now - _history[-1][0]).total_seconds() < SAMPLE_S - 5:
         return
     crowd = crowd if crowd is not None else routing.crowd_snapshot(now)
-    _history.append((now, {c["pavilion_id"]: c["wait_min"] for c in crowd}))
+    _history.append((now, {c["pavilion_id"]: c["wait_min"] for c in crowd}, False))
 
 
-def history(since: datetime | None = None) -> list[tuple[datetime, dict[str, int]]]:
+def backfill(now: datetime) -> None:
+    """The server keeps no history across restarts (a redeploy wipes memory). So that the chart
+    and the trends work right away, estimate the last BACKFILL_MIN with the planner's own model
+    (ML prior + the routed visitors the ledger already holds for those times). Marked estimated."""
+    if _history:
+        return
+    for k in range(BACKFILL_MIN // BACKFILL_STEP_MIN, 0, -1):
+        t = now - timedelta(minutes=k * BACKFILL_STEP_MIN)
+        _history.append((t, {c["pavilion_id"]: c["wait_min"] for c in routing.crowd_snapshot(t)}, True))
+
+
+def history(since: datetime | None = None) -> list[Sample]:
     return [h for h in list(_history) if since is None or h[0] >= since]
 
 
-def _sample_near(t: datetime) -> tuple[datetime, dict[str, int]] | None:
+def _avg(waits: dict[str, int]) -> float:
+    return round(sum(waits.values()) / len(waits), 1) if waits else 0.0
+
+
+def series(now: datetime, minutes: int = 120) -> dict:
+    """Site average wait over the last `minutes` (measured once a minute, or estimated after a
+    restart), the forecast average for the next 90 minutes, and each pavilion's change vs
+    COMPARE_MIN ago (the table's trend arrows). Read-only for the engine."""
+    backfill(now)
+    crowd = routing.crowd_snapshot(now)
+    record(now, crowd)
+    current = {c["pavilion_id"]: c["wait_min"] for c in crowd}
+    fc = routing.Forecast(now)
+    before = _sample_near(now - timedelta(minutes=COMPARE_MIN))
+    return {
+        "as_of": now.isoformat(),
+        "minutes": minutes,
+        "points": [{"at": t.isoformat(), "avg_wait_min": _avg(w), "estimated": est}
+                   for t, w, est in history(now - timedelta(minutes=minutes))],
+        "forecast": [{"minutes": m, "at": (now + timedelta(minutes=m)).isoformat(),
+                      "avg_wait_min": round(sum(fc.wait(pid, now + timedelta(minutes=m)) for pid in PAVILIONS)
+                                            / len(PAVILIONS), 1)}
+                     for m in SERIES_FORECAST_MIN],
+        "compare_minutes_ago": round((now - before[0]).total_seconds() / 60) if before else None,
+        "compare_estimated": before[2] if before else None,
+        "trend": {pid: {"wait_min": w, "wait_before_min": before[1].get(pid) if before else None,
+                        "change_min": w - before[1][pid] if before and pid in before[1] else None}
+                  for pid, w in current.items()},
+    }
+
+
+def _sample_near(t: datetime) -> Sample | None:
     best = min(list(_history), key=lambda h: abs((h[0] - t).total_seconds()), default=None)
     if best and abs((best[0] - t).total_seconds()) <= COMPARE_TOLERANCE_MIN * 60:
         return best
@@ -56,6 +105,7 @@ def _names(pid: str) -> dict:
 
 def facts(now: datetime, stats: dict) -> dict:
     """Everything the briefing may mention. `stats` is engine.admin_stats(now) (plus `connected`)."""
+    backfill(now)
     record(now, stats["pavilions"])
     before = _sample_near(now - timedelta(minutes=COMPARE_MIN))
     fc = routing.Forecast(now)
@@ -126,7 +176,8 @@ def facts(now: datetime, stats: dict) -> dict:
     return {
         "as_of": now.isoformat(),
         "time": now.strftime("%H:%M"),
-        "compare_minutes_ago": minutes_ago,       # None until the server has 30 min of history
+        "compare_minutes_ago": minutes_ago,       # None if there is no sample from then
+        "compare_estimated": before[2] if before else None,   # True: the earlier waits are model estimates
         "site": {
             "avg_wait_min": avg_now,
             "avg_wait_before_min": avg_before,

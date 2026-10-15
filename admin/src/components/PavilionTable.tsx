@@ -1,4 +1,4 @@
-import type { AdminStats, ForecastPoint, PavilionCrowd, Place } from '../api';
+import type { AdminStats, ForecastPoint, History, PavilionCrowd, Place, Trend } from '../api';
 import { fmt, hhmm, sum } from '../format';
 import { HEAT_FLOOR, heatFill } from '../heat';
 import { t } from '../strings';
@@ -6,17 +6,33 @@ import { Sparkline } from './Sparkline';
 import { StatusPill } from './Status';
 
 const BUCKETS = 8;
+const TREND_MIN = 5;   // smaller changes in wait are noise: no arrow
+
+/** ▲ / ▼ and the minutes the wait moved since 30 minutes ago (arrow + number, never colour alone). */
+function TrendTag({ trend, history }: { trend?: Trend; history?: History }) {
+  const d = trend?.change_min;
+  if (d == null || Math.abs(d) < TREND_MIN || !history?.compare_minutes_ago) return null;
+  const vars = { n: Math.abs(d), m: history.compare_minutes_ago };
+  const tip = t(d > 0 ? 'trendUp' : 'trendDown', vars) + (history.compare_estimated ? t('trendEst') : '');
+  return (
+    <span className={`trend ${d > 0 ? 'up' : 'down'}`} title={tip} aria-label={tip}>
+      {d > 0 ? '▲' : '▼'}{Math.abs(d)}
+    </span>
+  );
+}
 
 /**
  * One row per pavilion, three column groups that line up:
  *   Now (GET /crowd) | Model forecast (GET /pavilions/{id}/forecast) | Ledger (GET /admin/stats)
  * so "Japan is red now" and "here's who we're sending there next" read on the same line.
  */
-export function PavilionTable({ pavilions, crowd, stats, forecasts }: {
+export function PavilionTable({ pavilions, crowd, stats, forecasts, history }: {
   pavilions: Place[];
   crowd: Record<string, PavilionCrowd>;
   stats?: AdminStats;
   forecasts: Record<string, ForecastPoint[]>;
+  /** GET /admin/history: the trend arrow next to each wait. */
+  history?: History;
 }) {
   const routed: Record<string, number[]> = {};
   for (const p of stats?.pavilions ?? []) routed[p.pavilion_id] = p.routed_next_2h;
@@ -62,7 +78,12 @@ export function PavilionTable({ pavilions, crowd, stats, forecasts }: {
               return (
                 <tr key={p.id}>
                   <td className="name">{p.name_ar}</td>
-                  <td>{c ? <StatusPill status={c.status} wait={c.wait_min} /> : <span className="muted">…</span>}</td>
+                  <td>{c ? (
+                    <span className="wait-cell">
+                      <StatusPill status={c.status} wait={c.wait_min} />
+                      <TrendTag trend={history?.trend[p.id]} history={history} />
+                    </span>
+                  ) : <span className="muted">…</span>}</td>
                   <td className="num">{c ? fmt(c.queue_length) : ''}</td>
                   <td title={fc ? t('forecastTip', { a: fc[0], b: fc[1], c: fc[2], d: fc[3] }) : undefined}>
                     {fc ? (

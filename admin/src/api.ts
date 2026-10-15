@@ -34,6 +34,19 @@ export interface AdminStats {
   pavilions: (PavilionCrowd & { routed_next_2h: number[] })[];
 }
 
+/** GET /admin/history: site average wait (past + forecast) and each pavilion's change vs 30 min ago. */
+export interface HistoryPoint { at: string; avg_wait_min: number; estimated: boolean }
+export interface Trend { wait_min: number; wait_before_min: number | null; change_min: number | null }
+export interface History {
+  as_of: string;
+  minutes: number;
+  points: HistoryPoint[];
+  forecast: { minutes: number; at: string; avg_wait_min: number }[];
+  compare_minutes_ago: number | null;
+  compare_estimated: boolean | null;
+  trend: Record<string, Trend>;
+}
+
 /** GET /admin/insights: the AI briefing. `source` is "llm", or "fallback" when rules wrote it. */
 export type InsightFocus = 'overview' | 'hotspots' | 'next_hour' | 'actions' | 'balancing';
 export type InsightLevel = 'critical' | 'warning' | 'good' | 'info';
@@ -92,6 +105,7 @@ export const api = {
   crowd: () => call<Crowd>('/crowd'),
   stats: () => call<AdminStats>('/admin/stats'),
   forecast: (pid: string) => call<ForecastPoint[]>(`/pavilions/${encodeURIComponent(pid)}/forecast`),
+  history: () => call<History>('/admin/history?minutes=120'),
   // The model can take a few seconds, and Render may be waking up.
   insights: (focus: InsightFocus, refresh = false) =>
     call<Insights>(`/admin/insights?focus=${focus}&lang=ar${refresh ? '&refresh=true' : ''}`, {}, 45_000),

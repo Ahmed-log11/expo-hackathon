@@ -3,9 +3,10 @@
 The operator's view for the pitch: web only (Vite + React + TypeScript), Arabic, one page.
 
 - **AI briefing (ملخص الذكاء الاصطناعي):** a headline and up to 5 ranked points (عاجل / انتبه / جيد / معلومة), each with an action. Five quick picks: نظرة عامة، أين الازدحام؟، الساعة القادمة، ماذا أفعل الآن؟، أداء التوازن. Claude writes it from numbers the server computed (waits now vs 30 min ago and vs normal for the hour, the forecast, the ledger, offers). Without `ANTHROPIC_API_KEY` on the server, rules write it from the same numbers ("ملخص تلقائي").
+- **Site wait chart:** the average wait over the last 2 hours (solid; dotted where estimated after a server restart) and the model's forecast for the next 90 minutes (dashed). Hover for exact values.
 - **KPI tiles:** minutes of waiting saved, visitors on site, reroute offers (sent / accepted), average wait now.
 - **Pavilions table:**
-  - the live wait and queue at every pavilion;
+  - the live wait and queue at every pavilion, with ▲/▼ and the minutes it changed since 30 minutes ago (hover for details);
   - the ML forecast (now, +30, +60, +90 min);
   - the **ledger**: how many visitors the engine has already booked to arrive at each pavilion in each 15-minute slot of the next 2 hours. This is the load-balancing idea.
 - **Simulation tools** (hidden; add `?demo` to the URL): simulate visitors, spike a pavilion, reset. They exist for rehearsals and the live demo, not for normal operator use.
@@ -38,6 +39,7 @@ To run the local backend, from the repo root: `python -m uvicorn api.main:app --
 | Forecast column (now, +30, +60, +90) | `GET /pavilions/{id}/forecast` | 60 s, and right after a spike or reset |
 | KPI tiles and ledger columns | `GET /admin/stats` (new, read-only; see `contract/README.md`) | 5 s, or 2 s while simulating |
 | AI briefing (top card) | `GET /admin/insights?focus=…` (new, read-only) | 60 s, on a chip click, on تحديث, and right after a spike, reset or simulation |
+| Site wait chart, trend arrows (▲/▼ vs 30 min ago) | `GET /admin/history` (new, read-only) | 60 s, and right after a spike, reset or simulation |
 
 If the server doesn't have `/admin/stats` yet (Render before `app` is merged into `main`), the KPI tiles show "—" and the ledger stays empty. Everything else still works.
 

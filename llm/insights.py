@@ -47,6 +47,8 @@ SYSTEM = (
     "Rules: use only numbers and pavilions that appear in the JSON, never invent or round differently. "
     "Waits are in minutes. If compare_minutes_ago is null there is no history yet: compare with "
     "normal_wait_min (the model's usual wait for this hour) instead of saying 'than before'. "
+    "If compare_estimated is true, the earlier waits are model estimates (the server restarted), "
+    "so call that comparison estimated. "
     "Write in {lang_name}, plain and direct, for a busy operator. Name pavilions by their {name_key}."
 )
 
@@ -162,6 +164,7 @@ def _rules(focus: str, language: str, f: dict) -> dict:
         return {"level": level, "title": title, "detail": detail, "action": action, "pavilion_id": pid}
 
     s, ago = f["site"], f["compare_minutes_ago"]
+    est_ar, est_en = (" (تقديري)", " (estimated)") if f.get("compare_estimated") else ("", "")
     quiet = f["quiet"][0] if f["quiet"] else None
     redirect = (tr(f"وجّه الزوار إلى {nm(quiet)} (انتظار {quiet['wait_min']} د)",
                    f"Redirect visitors to {nm(quiet)} ({quiet['wait_min']} min)") if quiet else "")
@@ -172,8 +175,8 @@ def _rules(focus: str, language: str, f: dict) -> dict:
         trend = ""
         if s["avg_wait_before_min"] is not None:
             d = round(avg - s["avg_wait_before_min"])
-            trend = tr(f"، {'+' if d >= 0 else ''}{d} د عن قبل {ago} دقيقة",
-                       f", {'+' if d >= 0 else ''}{d} min vs {ago} min ago")
+            trend = tr(f"، {'+' if d >= 0 else ''}{d} د عن قبل {ago} دقيقة{est_ar}",
+                       f", {'+' if d >= 0 else ''}{d} min vs {ago} min ago{est_en}")
         return item(level, tr("الوضع العام", "Site status"),
                     tr(f"متوسط الانتظار {avg} د{trend}. {s['high_count']} أجنحة مزدحمة من {s['pavilions']}.",
                        f"Average wait {avg} min{trend}. {s['high_count']} of {s['pavilions']} pavilions busy."))
@@ -193,8 +196,8 @@ def _rules(focus: str, language: str, f: dict) -> dict:
 
     def rising() -> list[dict]:
         out = [item("warning", tr(f"{nm(r)} يزداد ازدحامًا", f"{nm(r)} is getting busier"),
-                    tr(f"من {r['wait_before_min']} إلى {r['wait_min']} د خلال آخر {ago} دقيقة.",
-                       f"From {r['wait_before_min']} to {r['wait_min']} min in the last {ago} min."),
+                    tr(f"من {r['wait_before_min']} إلى {r['wait_min']} د خلال آخر {ago} دقيقة{est_ar}.",
+                       f"From {r['wait_before_min']} to {r['wait_min']} min in the last {ago} min{est_en}."),
                     tr("راقبه وجهّز مسارات بديلة", "Watch it and prepare alternatives"), r["pavilion_id"])
                for r in f["rising"][:2]]
         out += [item("warning", tr(f"{nm(r)} أعلى من المعتاد", f"{nm(r)} is above normal"),

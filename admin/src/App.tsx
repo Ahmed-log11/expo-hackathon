@@ -5,6 +5,7 @@ import { DemoDock } from './components/DemoDock';
 import { Header } from './components/Header';
 import { KpiRow } from './components/KpiRow';
 import { PavilionTable } from './components/PavilionTable';
+import { SiteWaitChart } from './components/SiteWaitChart';
 import { pool, usePoll } from './hooks';
 import { type SimState, simulateVisitors } from './simulate';
 import { t } from './strings';
@@ -13,6 +14,7 @@ const CROWD_MS = 5_000;
 const STATS_MS = 5_000;
 const STATS_SIM_MS = 2_000;   // while simulating, so the ledger visibly fills up
 const FORECAST_MS = 60_000;
+const HISTORY_MS = 60_000;   // the server samples the waits once a minute
 const TOKEN_KEY = 'insyab-admin-token';
 
 /** The simulation tools are for rehearsals and the live demo, so they only show when the URL has ?demo. */
@@ -48,6 +50,7 @@ export default function App() {
   const [sim, setSim] = useState<SimState | null>(null);
   const [crowd, refreshCrowd] = usePoll(api.crowd, CROWD_MS);
   const [stats, refreshStats] = usePoll(api.stats, sim?.running ? STATS_SIM_MS : STATS_MS);
+  const [history, refreshHistory] = usePoll(api.history, HISTORY_MS);
 
   // The model's forecast per pavilion (one request each, a few at a time).
   const pids = useMemo(() => site?.pavilions.map((p) => p.id) ?? [], [site]);
@@ -71,8 +74,9 @@ export default function App() {
     setBriefBump((n) => n + 1);
     refreshCrowd();
     refreshStats();
+    refreshHistory();
     void refreshForecasts();
-  }, [refreshCrowd, refreshStats, refreshForecasts]);
+  }, [refreshCrowd, refreshStats, refreshHistory, refreshForecasts]);
 
   // The server's clock (Riyadh time, maybe not the laptop's): simulated visits are timed by it.
   const clockOffset = useRef(0);
@@ -117,8 +121,9 @@ export default function App() {
       <main className={demoOpen ? 'page with-dock' : 'page'}>
         <Briefing bump={briefBump} />
         <KpiRow stats={stats.data} crowd={crowd.data} />
+        <SiteWaitChart history={history.data} />
         {site ? (
-          <PavilionTable pavilions={site.pavilions} crowd={crowdById} stats={stats.data} forecasts={forecasts} />
+          <PavilionTable pavilions={site.pavilions} crowd={crowdById} stats={stats.data} forecasts={forecasts} history={history.data} />
         ) : (
           <p className="loading-page">{t(crowd.error ? 'waking' : 'connecting')}</p>
         )}
