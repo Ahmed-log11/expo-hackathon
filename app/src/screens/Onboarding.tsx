@@ -169,7 +169,7 @@ export default function Onboarding() {
               line height) always sits above the buttons instead of sliding under them from a fixed top. */}
           <View style={{ position: 'absolute', left: s(16), right: s(16), bottom: safe.ctaBottom }}>
             <View style={{ gap: s(8), marginBottom: s(24) }}>
-              <Txt style={[ar(700, 34, 46), { color: C.white }]}>خل يومك ينساب</Txt>
+              <Txt style={[ar(700, 34, 46), { color: C.white }]}>اقْضِ يومَكَ بانسياب</Txt>
               <Txt style={[ar(400, 17, 29), { color: 'rgba(255,255,255,0.88)' }]}>خطط زيارتك حسب اهتماماتك والازدحام المتوقع داخل إكسبو.</Txt>
             </View>
             <View style={{ gap: s(6), alignItems: 'center' }}>
