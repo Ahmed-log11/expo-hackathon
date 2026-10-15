@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type ForecastPoint, type PavilionCrowd, type Site } from './api';
+import { AlertsFeed } from './components/Alerts';
 import { Briefing } from './components/Briefing';
 import { DemoDock } from './components/DemoDock';
 import { Header } from './components/Header';
 import { KpiRow } from './components/KpiRow';
+import { PavilionDetail } from './components/PavilionDetail';
 import { PavilionTable } from './components/PavilionTable';
 import { SiteOverview } from './components/SiteOverview';
 import { SiteWaitChart } from './components/SiteWaitChart';
@@ -16,6 +18,7 @@ const STATS_MS = 5_000;
 const STATS_SIM_MS = 2_000;   // while simulating, so the ledger visibly fills up
 const FORECAST_MS = 60_000;
 const HISTORY_MS = 60_000;   // the server samples the waits once a minute
+const EVENTS_MS = 15_000;
 const TOKEN_KEY = 'insyab-admin-token';
 
 /** The simulation tools are for rehearsals and the live demo, so they only show when the URL has ?demo. */
@@ -52,6 +55,9 @@ export default function App() {
   const [crowd, refreshCrowd] = usePoll(api.crowd, CROWD_MS);
   const [stats, refreshStats] = usePoll(api.stats, sim?.running ? STATS_SIM_MS : STATS_MS);
   const [history, refreshHistory] = usePoll(api.history, HISTORY_MS);
+  const [events, refreshEvents] = usePoll(api.events, EVENTS_MS);
+  const [selected, setSelected] = useState<string | null>(null);
+  const names = useMemo(() => Object.fromEntries((site?.pavilions ?? []).map((p) => [p.id, p.name_ar])), [site]);
 
   // The model's forecast per pavilion (one request each, a few at a time).
   const pids = useMemo(() => site?.pavilions.map((p) => p.id) ?? [], [site]);
@@ -76,8 +82,9 @@ export default function App() {
     refreshCrowd();
     refreshStats();
     refreshHistory();
+    refreshEvents();
     void refreshForecasts();
-  }, [refreshCrowd, refreshStats, refreshHistory, refreshForecasts]);
+  }, [refreshCrowd, refreshStats, refreshHistory, refreshEvents, refreshForecasts]);
 
   // The server's clock (Riyadh time, maybe not the laptop's): simulated visits are timed by it.
   const clockOffset = useRef(0);
@@ -122,14 +129,27 @@ export default function App() {
       <main className={demoOpen ? 'page with-dock' : 'page'}>
         <Briefing bump={briefBump} />
         <KpiRow stats={stats.data} crowd={crowd.data} />
-        <SiteWaitChart history={history.data} />
-        {site && <SiteOverview site={site} crowd={crowdById} stats={stats.data} history={history.data} />}
+        <div className="chart-row">
+          <SiteWaitChart history={history.data} />
+          <AlertsFeed events={events.data?.events} names={names} onSelect={setSelected} />
+        </div>
+        {site && <SiteOverview site={site} crowd={crowdById} stats={stats.data} history={history.data} onSelect={setSelected} />}
         {site ? (
-          <PavilionTable pavilions={site.pavilions} crowd={crowdById} stats={stats.data} forecasts={forecasts} history={history.data} />
+          <PavilionTable pavilions={site.pavilions} crowd={crowdById} stats={stats.data} forecasts={forecasts} history={history.data} onSelect={setSelected} />
         ) : (
           <p className="loading-page">{t(crowd.error ? 'waking' : 'connecting')}</p>
         )}
       </main>
+      {selected && site && (
+        <PavilionDetail
+          pid={selected}
+          districts={site.districts ?? []}
+          names={names}
+          bump={briefBump}
+          onClose={() => setSelected(null)}
+          onSelect={setSelected}
+        />
+      )}
       {DEMO_MODE && demoOpen && site && (
         <DemoDock
           pavilions={site.pavilions}

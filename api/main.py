@@ -506,6 +506,25 @@ def admin_history(minutes: int = Query(120, ge=15, le=180)):
     return admin_insights_data.series(now(), minutes)
 
 
+@app.get("/admin/events")
+def admin_events(minutes: int = Query(120, ge=15, le=180)):
+    """Operator dashboard alerts feed, newest first: {at, kind, level, pavilion_id, wait_min, ...}.
+    kind = high (went busy) | calm (back below 35 min) | rising (+15 min within 15 min) |
+    report (a measured wait, e.g. /debug/observe) | offers (reroute offers sent, `count`) |
+    accepted (an offer taken, `saves_min`). `estimated` when built from estimated history. Read-only."""
+    current = now()
+    return {"as_of": current.isoformat(), "events": admin_insights_data.events(current, minutes)}
+
+
+@app.get("/admin/pavilions/{pid}")
+def admin_pavilion(pid: str):
+    """Operator dashboard detail panel: one pavilion's wait history + forecast, normal wait for
+    the hour, latest report, ledger bookings (8 x 15 min) and its recent events. Read-only."""
+    if pid not in engine.PAVILIONS:
+        raise err(404, "unknown_pavilion", f"Unknown pavilion {pid}")
+    return admin_insights_data.pavilion(pid, now())
+
+
 @app.get("/admin/insights")
 async def admin_insights(focus: str = "overview", lang: Literal["ar", "en"] = "ar", refresh: bool = False):
     """AI briefing for the operator dashboard: a headline and up to 5 ranked items

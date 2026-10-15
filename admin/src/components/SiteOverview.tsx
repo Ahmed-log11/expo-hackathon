@@ -28,11 +28,12 @@ interface DistrictRow {
  * number = wait now), next to one card per district. Hovering a district card highlights its
  * pavilions on the map; hovering a dot shows its numbers.
  */
-export function SiteOverview({ site, crowd, stats, history }: {
+export function SiteOverview({ site, crowd, stats, history, onSelect }: {
   site: Site;
   crowd: Record<string, PavilionCrowd>;
   stats?: AdminStats;
   history?: History;
+  onSelect: (pid: string) => void;
 }) {
   const [focusDistrict, setFocusDistrict] = useState<string | null>(null);
   const [hoverPid, setHoverPid] = useState<string | null>(null);
@@ -85,6 +86,11 @@ export function SiteOverview({ site, crowd, stats, history }: {
                   transform={`translate(${x},${y})`}
                   onMouseEnter={() => setHoverPid(p.id)}
                   onMouseLeave={() => setHoverPid(null)}
+                  onClick={() => onSelect(p.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${p.name_ar}: ${t('min', { n: fmt(c.wait_min) })}`}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(p.id); } }}
                 >
                   {c.status === 'high' && !dim && <circle r={DOT_R} className="pulse" />}
                   <circle r={DOT_R + 6} className="hit" />

@@ -5,6 +5,8 @@ or observes anything.
     record(now)          keep one wait snapshot per minute for the last 3 hours (memory only)
     backfill(now)        on an empty history, estimate the last 2 hours (marked estimated)
     series(now)          site average wait history + forecast + per-pavilion trend (GET /admin/history)
+    events(now)          the alerts feed: went busy, calmed down, rising fast, crowd reports, offers
+    pavilion(pid, now)   one pavilion in detail: its history, forecast, ledger and events
     facts(now, stats)    the numbers the AI briefing is written from (llm/insights.py)
 
 The briefing must never invent numbers, so everything it may say is computed here: waits now,
@@ -33,12 +35,33 @@ BACKFILL_MIN = 120         # after a (re)start, estimate this much past...
 BACKFILL_STEP_MIN = 5      # ...at this resolution
 SERIES_FORECAST_MIN = range(0, 91, 10)
 
+HIGH_MIN = 40              # "busy" (same line as crowd_snapshot's status)...
+CALM_MIN = 35              # ...and back to normal only below this, so a wait hovering at 40 doesn't flap
+FAST_RISE_MIN = 15         # "rising fast": the wait grew this much...
+FAST_WINDOW_MIN = 15       # ...within this many minutes
+FAST_REPEAT_MIN = 30       # and at most one such alert per pavilion per this long
+EVENTS_MAX = 40
+
 Sample = tuple[datetime, dict[str, int], bool]   # (time, wait per pavilion, estimated)
 _history: deque[Sample] = deque(maxlen=HISTORY_MIN * 60 // SAMPLE_S)
+# Reroute offers keep no send time once closed, so the recorder notes when the counter moves:
+# (time, offers sent since the last note, pavilions that triggered the open ones)
+_offer_log: deque[tuple[datetime, int, list[str]]] = deque(maxlen=200)
+_offer_seen = [0]
+
+
+def _note_offers(now: datetime) -> None:
+    sent = routing._offer_seq[0]
+    if sent > _offer_seen[0]:
+        open_offers = list(routing._offers.values())
+        triggers = sorted({(o["public"].get("trigger") or {}).get("pavilion_id") or "" for o in open_offers} - {""})
+        _offer_log.append((now, sent - _offer_seen[0], triggers))
+    _offer_seen[0] = sent
 
 
 def record(now: datetime, crowd: list[dict] | None = None) -> None:
     """Store the current waits, at most once per SAMPLE_S."""
+    _note_offers(now)
     if _history and (now - _history[-1][0]).total_seconds() < SAMPLE_S - 5:
         return
     crowd = crowd if crowd is not None else routing.crowd_snapshot(now)
@@ -199,4 +222,103 @@ def facts(now: datetime, stats: dict) -> dict:
         "ledger_heavy": [short(r, "routed_next_2h", "routed_load_pct") for r in heavy[:3]],
         "reported_now": [short(r, "wait_min") for r in rows if r["reported"]],
         "districts": districts,
+    }
+
+
+# ---------- alerts feed + pavilion detail ----------
+def events(now: datetime, minutes: int = 120, pid: str | None = None) -> list[dict]:
+    """Newest first. Built from what the server already keeps: the wait history (went busy,
+    calmed down, rising fast; `estimated` when those samples were estimated after a restart),
+    crowd reports (POST /debug/observe, staff, sensors), accepted offers and the offer log."""
+    since = now - timedelta(minutes=minutes)
+    hist = history()
+    out: list[dict] = []
+    for p in ([pid] if pid else list(PAVILIONS)):
+        busy, last_fast = None, None
+        window: deque[tuple[datetime, int]] = deque()
+        for t, waits, est in hist:
+            w = waits.get(p)
+            if w is None:
+                continue
+            if busy is None:
+                busy = w >= HIGH_MIN
+            elif not busy and w >= HIGH_MIN:
+                busy = True
+                out.append({"at": t, "kind": "high", "pavilion_id": p, "wait_min": w, "estimated": est})
+            elif busy and w < CALM_MIN:
+                busy = False
+                out.append({"at": t, "kind": "calm", "pavilion_id": p, "wait_min": w, "estimated": est})
+            while window and (t - window[0][0]).total_seconds() > FAST_WINDOW_MIN * 60:
+                window.popleft()
+            low = min((x for _, x in window), default=w)
+            if w - low >= FAST_RISE_MIN and (last_fast is None
+                                             or (t - last_fast).total_seconds() >= FAST_REPEAT_MIN * 60):
+                last_fast = t
+                out.append({"at": t, "kind": "rising", "pavilion_id": p, "wait_min": w, "before_min": low,
+                            "estimated": est})
+            window.append((t, w))
+    for p, (w, t) in list(routing.CROWD.observed.items()):
+        if pid in (None, p):
+            out.append({"at": t, "kind": "report", "pavilion_id": p, "wait_min": round(w), "estimated": False})
+    for meta in list(routing._meta.values()):
+        for a in meta.get("accepted", []):
+            if pid in (None, a.get("trigger")):
+                out.append({"at": datetime.fromisoformat(a["at"]), "kind": "accepted",
+                            "pavilion_id": a.get("trigger") or "", "saves_min": a["saves_min"], "estimated": False})
+    for t, n, triggers in list(_offer_log):
+        if pid is None or pid in triggers:
+            out.append({"at": t, "kind": "offers", "pavilion_id": triggers[0] if len(triggers) == 1 else "",
+                        "count": n, "estimated": False})
+    # One alert per happening: a report already says "busy", and "went busy" covers "rising".
+    reports = {e["pavilion_id"]: e["at"] for e in out if e["kind"] == "report"}
+    highs = {(e["pavilion_id"], e["at"]) for e in out if e["kind"] == "high"}
+
+    def echo(e: dict) -> bool:
+        r = reports.get(e["pavilion_id"])
+        after_report = r is not None and 0 <= (e["at"] - r).total_seconds() <= 3 * 60
+        return (e["kind"] in ("high", "rising") and after_report) or \
+            (e["kind"] == "rising" and (e["pavilion_id"], e["at"]) in highs)
+
+    out = [e for e in out if e["at"] >= since and not echo(e)]
+    out.sort(key=lambda e: e["at"], reverse=True)
+    levels = {"high": "critical", "report": "critical", "rising": "warning", "offers": "info"}
+    for e in out:
+        e["at"] = e["at"].isoformat()
+        e["level"] = levels.get(e["kind"], "good")
+    return out[:EVENTS_MAX]
+
+
+def pavilion(pid: str, now: datetime, minutes: int = 120) -> dict:
+    """One pavilion for the detail panel. Read-only."""
+    backfill(now)
+    stats = routing.admin_stats(now)
+    record(now, stats["pavilions"])
+    row = next(x for x in stats["pavilions"] if x["pavilion_id"] == pid)
+    p = PAVILIONS[pid]
+    fc = routing.Forecast(now)
+    before = _sample_near(now - timedelta(minutes=COMPARE_MIN))
+    obs = routing.CROWD.observed.get(pid)
+    routed = sum(row["routed_next_2h"])
+    return {
+        "as_of": now.isoformat(),
+        "pavilion": {k: p.get(k) for k in ("id", "name_ar", "name_en", "district", "type", "capacity_per_hour",
+                                             "avg_visit_min", "popularity", "indoor", "tags")},
+        "wait_min": row["wait_min"],
+        "status": row["status"],
+        "queue_length": row["queue_length"],
+        "normal_wait_min": round(prior_wait(pid, now)),
+        "wait_before_min": before[1].get(pid) if before else None,
+        "compare_minutes_ago": round((now - before[0]).total_seconds() / 60) if before else None,
+        "compare_estimated": before[2] if before else None,
+        "reported": ({"wait_min": round(obs[0]), "at": obs[1].isoformat()}
+                     if obs and 0 <= (now - obs[1]).total_seconds() <= PERSIST_MIN * 60 else None),
+        "points": [{"at": t.isoformat(), "wait_min": w[pid], "estimated": est}
+                   for t, w, est in history(now - timedelta(minutes=minutes)) if pid in w],
+        "forecast": [{"minutes": m, "at": (now + timedelta(minutes=m)).isoformat(),
+                      "wait_min": round(fc.wait(pid, now + timedelta(minutes=m)))} for m in SERIES_FORECAST_MIN],
+        "bucket_min": stats["bucket_min"],
+        "buckets": stats["buckets"],
+        "routed_next_2h": row["routed_next_2h"],
+        "routed_load_pct": round(100 * routed / (p["capacity_per_hour"] * 2)),
+        "events": events(now, minutes, pid)[:10],
     }

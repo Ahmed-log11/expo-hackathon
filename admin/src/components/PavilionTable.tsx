@@ -26,13 +26,15 @@ function TrendTag({ trend, history }: { trend?: Trend; history?: History }) {
  *   Now (GET /crowd) | Model forecast (GET /pavilions/{id}/forecast) | Ledger (GET /admin/stats)
  * so "Japan is red now" and "here's who we're sending there next" read on the same line.
  */
-export function PavilionTable({ pavilions, crowd, stats, forecasts, history }: {
+export function PavilionTable({ pavilions, crowd, stats, forecasts, history, onSelect }: {
   pavilions: Place[];
   crowd: Record<string, PavilionCrowd>;
   stats?: AdminStats;
   forecasts: Record<string, ForecastPoint[]>;
   /** GET /admin/history: the trend arrow next to each wait. */
   history?: History;
+  /** Opens the pavilion's detail panel. */
+  onSelect: (pid: string) => void;
 }) {
   const routed: Record<string, number[]> = {};
   for (const p of stats?.pavilions ?? []) routed[p.pavilion_id] = p.routed_next_2h;
@@ -76,8 +78,10 @@ export function PavilionTable({ pavilions, crowd, stats, forecasts, history }: {
               const cells = routed[p.id] ?? [];
               const fc = forecasts[p.id]?.map((f) => f.wait_min);
               return (
-                <tr key={p.id}>
-                  <td className="name">{p.name_ar}</td>
+                <tr key={p.id} className="clickable" onClick={() => onSelect(p.id)} title={t('openDetail')}>
+                  <td className="name">
+                    <button type="button" className="row-link" onClick={(e) => { e.stopPropagation(); onSelect(p.id); }}>{p.name_ar}</button>
+                  </td>
                   <td>{c ? (
                     <span className="wait-cell">
                       <StatusPill status={c.status} wait={c.wait_min} />

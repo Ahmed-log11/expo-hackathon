@@ -49,6 +49,42 @@ export interface History {
   trend: Record<string, Trend>;
 }
 
+/** GET /admin/events: the alerts feed, newest first. */
+export type EventKind = 'high' | 'calm' | 'rising' | 'report' | 'offers' | 'accepted';
+export interface SiteEvent {
+  at: string;
+  kind: EventKind;
+  level: 'critical' | 'warning' | 'good' | 'info';
+  pavilion_id: string;
+  wait_min?: number;
+  before_min?: number;
+  count?: number;
+  saves_min?: number;
+  estimated: boolean;
+}
+
+/** GET /admin/pavilions/{id}: one pavilion for the detail panel. */
+export interface PavilionDetail {
+  as_of: string;
+  pavilion: { id: string; name_ar: string; name_en: string; district: string; type: string; capacity_per_hour: number;
+    avg_visit_min: number; popularity: number; indoor: boolean; tags: string[] };
+  wait_min: number;
+  status: Status;
+  queue_length: number;
+  normal_wait_min: number;
+  wait_before_min: number | null;
+  compare_minutes_ago: number | null;
+  compare_estimated: boolean | null;
+  reported: { wait_min: number; at: string } | null;
+  points: { at: string; wait_min: number; estimated: boolean }[];
+  forecast: { minutes: number; at: string; wait_min: number }[];
+  bucket_min: number;
+  buckets: string[];
+  routed_next_2h: number[];
+  routed_load_pct: number;
+  events: SiteEvent[];
+}
+
 /** GET /admin/insights: the AI briefing. `source` is "llm", or "fallback" when rules wrote it. */
 export type InsightFocus = 'overview' | 'hotspots' | 'next_hour' | 'actions' | 'balancing';
 export type InsightLevel = 'critical' | 'warning' | 'good' | 'info';
@@ -108,6 +144,8 @@ export const api = {
   stats: () => call<AdminStats>('/admin/stats'),
   forecast: (pid: string) => call<ForecastPoint[]>(`/pavilions/${encodeURIComponent(pid)}/forecast`),
   history: () => call<History>('/admin/history?minutes=120'),
+  events: () => call<{ as_of: string; events: SiteEvent[] }>('/admin/events?minutes=120'),
+  pavilion: (pid: string) => call<PavilionDetail>(`/admin/pavilions/${encodeURIComponent(pid)}`),
   // The model can take a few seconds, and Render may be waking up.
   insights: (focus: InsightFocus, refresh = false) =>
     call<Insights>(`/admin/insights?focus=${focus}&lang=ar${refresh ? '&refresh=true' : ''}`, {}, 45_000),
