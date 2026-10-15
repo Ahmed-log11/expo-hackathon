@@ -460,6 +460,17 @@ def decline_offer(vid: str, offer_id: str):
     return {"ok": True}
 
 
+# ---------- operator dashboard (admin/) ----------
+@app.get("/admin/stats")
+def admin_stats():
+    """Site-wide numbers for the operator dashboard: visitors, reroute offers, minutes saved,
+    current waits and the ledger's routed arrivals per pavilion (8 x 15 min ahead). Read-only."""
+    current = now()
+    stats = engine.admin_stats(current)
+    stats["visitors"]["connected"] = len(live.conns)   # visitors with the app open right now
+    return {"as_of": current.isoformat(), **stats}
+
+
 # ---------- debug (demo + testing) ----------
 def _check_token(token: str | None) -> None:
     if DEMO_TOKEN and token != DEMO_TOKEN:

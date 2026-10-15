@@ -10,7 +10,7 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: LLM_MODEL
-        value: claude-haiku-5-5
+        value: claude-haiku-4-5
       - key: CROWD_INTERVAL_S
         value: "10"
       - key: DEMO_TOKEN

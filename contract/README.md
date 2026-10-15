@@ -32,6 +32,7 @@ The team's earlier proposal (separate `POST /plan`, `/checkin`, `/location`, `cr
 | POST | `/visitors/{id}/adjust` | "Adjust my plan" preview (stub until C7) | `POST_visitor_adjust.*` |
 | POST | `/visitors/{id}/offers/{offer_id}/accept` | Visitor took the new route; returns it (version + 1). `410` `offer_unavailable` (expired / gone) or `offer_stale` (plan changed) | `POST_offer_accept.response.json` |
 | POST | `/visitors/{id}/offers/{offer_id}/decline` | Visitor kept their plan; `{"ok": true}`. Same `410` errors | — |
+| GET | `/admin/stats` | Operator dashboard (`admin/`), read-only. `visitors {total, active, connected}` (active = inside their planned visit now, connected = app open on the WebSocket), `offers {sent, open, accepted, accepted_saved_min}`, `saved_min_total` (plan + accepted reroutes, like each summary), `avg_wait_min`, and per pavilion the `/crowd` fields plus `routed_next_2h`: the ledger's expected arrivals in 8 buckets of `bucket_min` (15) starting at `buckets[i]` | `GET_admin_stats.json` |
 
 ### POST /visitors
 
