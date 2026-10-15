@@ -43,7 +43,7 @@ export function PavilionTable({ pavilions, crowd, stats, forecasts, history, onS
   const yMax = Math.max(60, ...Object.values(forecasts).flat().map((f) => f.wait_min));
 
   return (
-    <section className="card">
+    <section className="card table-card">
       <div className="table-scroll">
         <table className="ptable">
           <colgroup>
@@ -58,14 +58,14 @@ export function PavilionTable({ pavilions, crowd, stats, forecasts, history, onS
             <tr className="groups">
               <th />
               <th colSpan={2}>{t('groupNow')}</th>
-              <th>{t('groupForecast')} <span className="badge">ML</span></th>
+              <th className="gs">{t('groupForecast')} <span className="badge">ML</span></th>
               <th colSpan={BUCKETS + 1} className="g-ledger gs">{t('groupLedger')}</th>
             </tr>
             <tr className="cols">
               <th>{t('colPavilion')}</th>
               <th>{t('colWait')}</th>
               <th className="num">{t('colQueue')}</th>
-              <th>{t('colForecast')}</th>
+              <th className="gs">{t('colForecast')}</th>
               {Array.from({ length: BUCKETS }, (_, i) => (
                 <th key={i} className={i === 0 ? 'heat-h num gs' : 'heat-h num'}>{buckets[i] ? hhmm(buckets[i]) : '—'}</th>
               ))}
@@ -89,7 +89,7 @@ export function PavilionTable({ pavilions, crowd, stats, forecasts, history, onS
                     </span>
                   ) : <span className="muted">…</span>}</td>
                   <td className="num">{c ? fmt(c.queue_length) : ''}</td>
-                  <td title={fc ? t('forecastTip', { a: fc[0], b: fc[1], c: fc[2], d: fc[3] }) : undefined}>
+                  <td className="gs" title={fc ? t('forecastTip', { a: fc[0], b: fc[1], c: fc[2], d: fc[3] }) : undefined}>
                     {fc ? (
                       <span className="fc-wrap">
                         <Sparkline values={fc} yMax={yMax} />

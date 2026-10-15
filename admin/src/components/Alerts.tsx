@@ -6,6 +6,10 @@ const LEVEL_LABEL: Record<SiteEvent['level'], Key> = {
   critical: 'aiCritical', warning: 'aiWarning', good: 'aiGood', info: 'aiInfo',
 };
 
+const LEVEL_ICON: Record<SiteEvent['level'], string> = {
+  critical: '!', warning: '▲', good: '✓', info: 'i',
+};
+
 /** One alert as a sentence, e.g. "جناح ألمانيا أصبح مزدحمًا (66 د)". */
 export function eventText(e: SiteEvent, names: Record<string, string>): string {
   const name = names[e.pavilion_id] ?? e.pavilion_id;
@@ -31,12 +35,15 @@ export function EventList({ events, names, onSelect }: {
         const clickable = !!onSelect && !!e.pavilion_id;
         const body = (
           <>
-            <time className="ev-time num">{hhmm(e.at)}</time>
-            <span className={`lv-tag ev-${e.level}`}>{t(LEVEL_LABEL[e.level])}</span>
-            <span className="ev-text">
-              {eventText(e, names)}
-              {e.estimated && <span className="muted"> · {t('evEstimated')}</span>}
+            <span className={`ev-icon ev-${e.level}`} aria-hidden="true">{LEVEL_ICON[e.level]}</span>
+            <span className="ev-main">
+              <span className="ev-text">{eventText(e, names)}</span>
+              <span className="ev-meta">
+                <time className="ev-time num">{hhmm(e.at)}</time>
+                {e.estimated && <span> · {t('evEstimated')}</span>}
+              </span>
             </span>
+            <span className={`lv-tag ev-${e.level}`}>{t(LEVEL_LABEL[e.level])}</span>
           </>
         );
         return (
@@ -61,11 +68,11 @@ export function AlertsFeed({ events, names, onSelect }: {
     <section className="card alerts-card" aria-labelledby="alerts-title">
       <div className="chart-head">
         <h2 id="alerts-title">{t('alertsTitle')}</h2>
-        <span className="muted alerts-sub">{t('alertsSub')}</span>
+        <span className="alerts-sub">{t('alertsSub')}</span>
       </div>
       <div className="alerts-scroll">
-        {!events && <p className="muted">{t('connecting')}</p>}
-        {events && !events.length && <p className="muted">{t('alertsEmpty')}</p>}
+        {!events && <p className="panel-state">{t('connecting')}</p>}
+        {events && !events.length && <p className="panel-state">{t('alertsEmpty')}</p>}
         {events && events.length > 0 && <EventList events={events} names={names} onSelect={onSelect} />}
       </div>
     </section>

@@ -21,9 +21,10 @@ export function Header({ crowd, demoOpen, onToggleDemo }: {
 
   return (
     <header className="topbar">
+      <div className="topbar-inner">
       <div className="brand">
-        <img src={`${import.meta.env.BASE_URL}favicon.png`} alt="" width={30} height={30} />
-        <strong>{t('brand')}</strong>
+        {/* Official INSYAB lockup (Figma export, app/src/assets/svg.ts LOGO_SVGS.lockupDark): white wordmark + aqua flow symbol */}
+        <img className="brand-lockup" src={`${import.meta.env.BASE_URL}insyab-lockup.svg`} alt={`${t('brand')} INSYAB`} height={34} />
         <span className="brand-sep" aria-hidden="true" />
         <span className="brand-sub">{t('title')}</span>
       </div>
@@ -37,6 +38,7 @@ export function Header({ crowd, demoOpen, onToggleDemo }: {
             {t('demo')}
           </button>
         )}
+      </div>
       </div>
     </header>
   );

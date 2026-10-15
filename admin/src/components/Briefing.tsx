@@ -61,7 +61,13 @@ export function Briefing({ bump }: { bump: number }) {
   return (
     <section className="card brief" aria-labelledby="brief-title" aria-busy={loading}>
       <div className="brief-head">
-        <h2 id="brief-title"><span className="ai-mark" aria-hidden="true">✦</span>{t('aiTitle')}</h2>
+        <h2 id="brief-title">
+          <img className="brief-avatar" src={`${import.meta.env.BASE_URL}insyab-icon.svg`} alt="" width={40} height={40} />
+          <span className="ai-mark" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" fill="currentColor" /></svg>
+          </span>
+          {t('aiTitle')}
+        </h2>
         <div className="brief-meta">
           {data && (
             <span className="muted">
@@ -89,13 +95,13 @@ export function Briefing({ bump }: { bump: number }) {
         ))}
       </div>
 
-      {error && !data && <p className="brief-error">{t('aiError')}: {error}</p>}
-      {!data && !error && <p className="brief-loading muted">{t('aiWriting')}</p>}
+      {error && !data && <p className="brief-state brief-error" role="status"><i aria-hidden="true" />{t('aiError')}: {error}</p>}
+      {!data && !error && <p className="brief-state brief-loading" role="status"><i aria-hidden="true" />{t('aiWriting')}</p>}
 
       {data && (
         <div className={loading ? 'brief-body stale' : 'brief-body'}>
           <p className="brief-headline">{data.headline}</p>
-          <ul className="brief-items">
+          <ul className="brief-items" data-count={data.items.length}>
             {data.items.map((it, i) => (
               <li key={i} className={`brief-item lv-${it.level}`}>
                 <span className="lv-tag">{t(LEVEL_LABEL[it.level])}</span>
