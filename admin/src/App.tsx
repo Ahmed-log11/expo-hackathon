@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type ForecastPoint, type PavilionCrowd, type Site } from './api';
+import { Briefing } from './components/Briefing';
 import { DemoDock } from './components/DemoDock';
 import { Header } from './components/Header';
 import { KpiRow } from './components/KpiRow';
@@ -64,7 +65,10 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [pids, refreshForecasts]);
 
+  // Bumped after a demo action (spike, reset, simulate) so the AI briefing rewrites at once.
+  const [briefBump, setBriefBump] = useState(0);
   const refreshAll = useCallback(() => {
+    setBriefBump((n) => n + 1);
     refreshCrowd();
     refreshStats();
     void refreshForecasts();
@@ -111,6 +115,7 @@ export default function App() {
     <>
       <Header crowd={crowd} demoOpen={demoOpen} onToggleDemo={DEMO_MODE ? () => setDemoOpen((o) => !o) : undefined} />
       <main className={demoOpen ? 'page with-dock' : 'page'}>
+        <Briefing bump={briefBump} />
         <KpiRow stats={stats.data} crowd={crowd.data} />
         {site ? (
           <PavilionTable pavilions={site.pavilions} crowd={crowdById} stats={stats.data} forecasts={forecasts} />

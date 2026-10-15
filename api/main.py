@@ -31,6 +31,8 @@ sys.path.insert(0, str(ROOT))
 import engine  # B's engine (api/engine_mock.py is the old stand-in)  # noqa: E402
 from llm.adjust import describe as describe_change, named_pavilions, understand as understand_change  # noqa: E402
 from llm.wishlist import CHIPS, extract_wishlist, from_chips  # noqa: E402
+from engine import insights as admin_insights_data  # noqa: E402
+from llm.insights import FOCUSES as INSIGHT_FOCUSES, briefing as insight_briefing  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("api")
@@ -140,14 +142,27 @@ def seed_simulated_visitors() -> None:
     log.info("simulated visitors: %s per day x %s people, days %s", SIM_VISITORS, SIM_GROUP, sim_state["days"])
 
 
+async def history_loop() -> None:
+    """Operator dashboard: remember every pavilion's wait once a minute (engine/insights.py),
+    so the briefing can say what got busier than 30 minutes ago. Read-only for the engine."""
+    while True:
+        try:
+            await asyncio.to_thread(admin_insights_data.record, now())
+        except Exception:  # never let the recorder take the API down
+            log.exception("wait history: snapshot failed")
+        await asyncio.sleep(admin_insights_data.SAMPLE_S)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     engine.crowd_snapshot(now())   # warm-up: loads the ML model now, not on the first visitor
     if SIM_VISITORS > 0:
         seed_simulated_visitors()
     task = asyncio.create_task(crowd_loop())
+    history = asyncio.create_task(history_loop())
     yield
     task.cancel()
+    history.cancel()
 
 
 app = FastAPI(title="Expo 2030 Crowd-Balancing API", version="0.1.0", lifespan=lifespan)
@@ -469,6 +484,24 @@ def admin_stats():
     stats = engine.admin_stats(current)
     stats["visitors"]["connected"] = len(live.conns)   # visitors with the app open right now
     return {"as_of": current.isoformat(), **stats}
+
+
+def _insights(focus: str, lang: str, refresh: bool) -> dict:
+    current = now()
+    stats = engine.admin_stats(current)
+    stats["visitors"]["connected"] = len(live.conns)
+    return insight_briefing(focus, lang, admin_insights_data.facts(current, stats), refresh)
+
+
+@app.get("/admin/insights")
+async def admin_insights(focus: str = "overview", lang: Literal["ar", "en"] = "ar", refresh: bool = False):
+    """AI briefing for the operator dashboard: a headline and up to 5 ranked items
+    {level, title, detail, action, pavilion_id}. focus = overview | hotspots | next_hour | actions |
+    balancing. Written by the LLM from computed numbers only (source "llm"), or by rules when
+    there is no API key (source "fallback"). Cached 60 s per focus and language. Read-only."""
+    if focus not in INSIGHT_FOCUSES:
+        raise err(422, "unknown_focus", f"focus must be one of: {', '.join(INSIGHT_FOCUSES)}")
+    return await asyncio.to_thread(_insights, focus, lang, refresh)
 
 
 # ---------- debug (demo + testing) ----------

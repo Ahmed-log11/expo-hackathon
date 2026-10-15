@@ -117,6 +117,55 @@ button, input, select { font: inherit; color: inherit; }
 .kpi.hero h3, .kpi.hero .kpi-unit { color: var(--mint); }
 .kpi.hero .kpi-value { font-size: 48px; line-height: 1.1; }
 
+/* ---------- AI briefing ---------- */
+.card.brief { margin-top: 0; margin-bottom: 16px; padding: 14px 18px 16px; }
+.brief-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brief-head h2 { margin: 0; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.ai-mark { color: var(--aqua-text); font-size: 15px; }
+.brief-meta { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
+.btn.soft { background: var(--mint-soft); color: var(--aqua-text); padding: 6px 12px; font-size: 13px; }
+.btn.soft:hover:not(:disabled) { background: var(--mint); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.chip {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--slate);
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--aqua); color: var(--ink); }
+.chip.on { background: var(--deep); border-color: var(--deep); color: #fff; }
+.brief-body { margin-top: 14px; transition: opacity 0.2s; }
+.brief-body.stale { opacity: 0.55; }
+.brief-headline { font-size: 17px; font-weight: 700; color: var(--deep); }
+.brief-items { list-style: none; margin: 10px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.brief-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--canvas);
+  border-inline-start: 4px solid var(--slate-2);
+}
+.brief-item.lv-critical { background: var(--high-bg); border-color: var(--high); }
+.brief-item.lv-warning { background: var(--mod-bg); border-color: var(--mod); }
+.brief-item.lv-good { background: var(--low-bg); border-color: var(--low); }
+.lv-tag { flex: none; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface); color: var(--slate); }
+.lv-critical .lv-tag { color: var(--high-text); }
+.lv-warning .lv-tag { color: var(--mod-text); }
+.lv-good .lv-tag { color: var(--low-text); }
+.brief-text { min-width: 0; }
+.brief-text strong { display: block; font-size: 14px; }
+.brief-text p { font-size: 13px; color: var(--ink); margin-top: 2px; }
+.brief-text .brief-action { color: var(--deep); }
+.brief-note { font-size: 12px; margin-top: 8px; }
+.brief-loading { margin-top: 14px; }
+.brief-error { margin-top: 14px; color: var(--high-text); font-size: 13px; }
+
 /* ---------- status pill ---------- */
 .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .pill-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }

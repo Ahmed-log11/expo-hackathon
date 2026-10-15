@@ -34,6 +34,19 @@ export interface AdminStats {
   pavilions: (PavilionCrowd & { routed_next_2h: number[] })[];
 }
 
+/** GET /admin/insights: the AI briefing. `source` is "llm", or "fallback" when rules wrote it. */
+export type InsightFocus = 'overview' | 'hotspots' | 'next_hour' | 'actions' | 'balancing';
+export type InsightLevel = 'critical' | 'warning' | 'good' | 'info';
+export interface InsightItem { level: InsightLevel; title: string; detail: string; action: string; pavilion_id: string }
+export interface Insights {
+  focus: InsightFocus;
+  source: 'llm' | 'fallback';
+  generated_at: string;
+  compare_minutes_ago: number | null;
+  headline: string;
+  items: InsightItem[];
+}
+
 export interface NewVisitor { must_visit: string[]; language: 'ar' | 'en'; end_time: string }
 
 export class ApiError extends Error {
@@ -79,6 +92,9 @@ export const api = {
   crowd: () => call<Crowd>('/crowd'),
   stats: () => call<AdminStats>('/admin/stats'),
   forecast: (pid: string) => call<ForecastPoint[]>(`/pavilions/${encodeURIComponent(pid)}/forecast`),
+  // The model can take a few seconds, and Render may be waking up.
+  insights: (focus: InsightFocus, refresh = false) =>
+    call<Insights>(`/admin/insights?focus=${focus}&lang=ar${refresh ? '&refresh=true' : ''}`, {}, 45_000),
   createVisitor: (body: NewVisitor) => call<{ visitor_id: string }>('/visitors', post(body)),
   observe: (pid: string, waitMin: number, token: string) =>
     call<{ alerts: number; offers: number }>(debug('/debug/observe', token), post({ pavilion_id: pid, wait_min: waitMin })),
