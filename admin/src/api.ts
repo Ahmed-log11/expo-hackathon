@@ -10,22 +10,10 @@ export const API_URL = (
 
 export type Status = 'low' | 'medium' | 'high';
 
-export interface District { id: string; name_en: string; name_ar: string }
+/** The parts of a GET /pavilions entry the dashboard uses (popularity weights the simulated wishlists). */
+export interface Place { id: string; name_ar: string; popularity?: number }
 
-export interface Place {
-  id: string;
-  name_en: string;
-  name_ar: string;
-  type?: string;
-  district?: string;
-  x: number;
-  y: number;
-  capacity_per_hour?: number;
-  avg_visit_min?: number;
-  popularity?: number;
-}
-
-export interface Site { districts: District[]; pavilions: Place[]; landmarks: Place[] }
+export interface Site { pavilions: Place[] }
 
 export interface PavilionCrowd { pavilion_id: string; wait_min: number; queue_length: number; status: Status }
 

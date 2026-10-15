@@ -1,29 +1,27 @@
 import { useEffect, useState } from 'react';
-import { type ApiError, type Place, toApiError } from '../api';
-import { useI18n } from '../i18n';
+import { api, type ApiError, type Place, toApiError } from '../api';
 import type { SimState } from '../simulate';
+import { errorText, t } from '../strings';
 
-/** Kept as data and worded at render time, so it follows the language toggle. */
+/** Kept as data and worded at render time. */
 type Result =
   | { ok: true; key: 'spikeDone' | 'resetDone'; vars?: Record<string, number> }
   | { ok: false; error: ApiError }
   | null;
 
 /** The presenter's controls, docked at the bottom so the dashboard stays visible while they act. */
-export function DemoDock({ pavilions, spikePid, setSpikePid, sim, token, setToken, onSimulate, onStopSim, onSpike, onReset, onClose }: {
+export function DemoDock({ pavilions, sim, token, setToken, onSimulate, onStopSim, onChanged, onClose }: {
   pavilions: Place[];
-  spikePid: string;
-  setSpikePid: (pid: string) => void;
   sim: SimState | null;
   token: string;
   setToken: (token: string) => void;
   onSimulate: (count: number) => void;
   onStopSim: () => void;
-  onSpike: (pid: string, waitMin: number) => Promise<{ alerts: number; offers: number }>;
-  onReset: () => Promise<void>;
+  /** The server's state changed (spike, reset): refresh what the dashboard shows. */
+  onChanged: () => void;
   onClose: () => void;
 }) {
-  const { t, name, errorText } = useI18n();
+  const [pid, setPid] = useState(() => (pavilions.some((p) => p.id === 'jp') ? 'jp' : pavilions[0]?.id ?? ''));
   const [wait, setWait] = useState(90);
   const [busy, setBusy] = useState(false);
   const [spikeResult, setSpikeResult] = useState<Result>(null);
@@ -39,7 +37,7 @@ export function DemoDock({ pavilions, spikePid, setSpikePid, sim, token, setToke
 
   const fail = (e: unknown): Result => {
     const error = toApiError(e);
-    if (error.status === 403) setShowToken(true);
+    if (error.status === 403) setShowToken(true);   // the server wants the demo token
     return { ok: false, error };
   };
   const show = (r: Result) => r && (
@@ -47,11 +45,12 @@ export function DemoDock({ pavilions, spikePid, setSpikePid, sim, token, setToke
   );
 
   const spike = async () => {
-    if (!spikePid) return;
+    if (!pid) return;
     setBusy(true);
     try {
-      const res = await onSpike(spikePid, wait);
+      const res = await api.observe(pid, wait, token);
       setSpikeResult({ ok: true, key: 'spikeDone', vars: { alerts: res.alerts, offers: res.offers } });
+      onChanged();
     } catch (e) {
       setSpikeResult(fail(e));
     } finally {
@@ -67,8 +66,9 @@ export function DemoDock({ pavilions, spikePid, setSpikePid, sim, token, setToke
     setConfirming(false);
     setBusy(true);
     try {
-      await onReset();
+      await api.reset(token);
       setResetResult({ ok: true, key: 'resetDone' });
+      onChanged();
     } catch (e) {
       setResetResult(fail(e));
     } finally {
@@ -78,14 +78,13 @@ export function DemoDock({ pavilions, spikePid, setSpikePid, sim, token, setToke
 
   const running = Boolean(sim?.running);
   const pct = sim ? Math.round(((sim.done + sim.failed) / Math.max(1, sim.total)) * 100) : 0;
-  const sorted = [...pavilions].sort((a, b) => name(a).localeCompare(name(b)));
+  const sorted = [...pavilions].sort((a, b) => a.name_ar.localeCompare(b.name_ar, 'ar'));
 
   return (
     <aside className="dock" aria-label={t('demo')}>
       <div className="dock-inner">
         <section className="dock-sec">
           <h3>{t('simTitle')}</h3>
-          <p className="dock-hint">{t('simHint')}</p>
           <div className="dock-row">
             {[50, 200].map((n) => (
               <button key={n} type="button" className="btn accent" disabled={running || !pavilions.length}
@@ -110,15 +109,15 @@ export function DemoDock({ pavilions, spikePid, setSpikePid, sim, token, setToke
         <section className="dock-sec">
           <h3>{t('spikeTitle')}</h3>
           <div className="dock-row">
-            <select value={spikePid} onChange={(e) => setSpikePid(e.target.value)} aria-label={t('colPavilion')}>
-              {sorted.map((p) => <option key={p.id} value={p.id}>{name(p, p.id)}</option>)}
+            <select value={pid} onChange={(e) => setPid(e.target.value)} aria-label={t('colPavilion')}>
+              {sorted.map((p) => <option key={p.id} value={p.id}>{p.name_ar}</option>)}
             </select>
             <label className="wait-input">
               <span>{t('spikeWait')}</span>
               <input type="number" min={0} max={300} step={5} value={wait}
                 onChange={(e) => setWait(Math.min(300, Math.max(0, Number(e.target.value) || 0)))} />
             </label>
-            <button type="button" className="btn danger" disabled={busy || !spikePid} onClick={spike}>{t('spikeBtn')}</button>
+            <button type="button" className="btn danger" disabled={busy || !pid} onClick={spike}>{t('spikeBtn')}</button>
           </div>
           {show(spikeResult)}
         </section>

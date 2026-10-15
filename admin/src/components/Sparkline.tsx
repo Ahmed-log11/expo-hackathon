@@ -4,14 +4,11 @@ const PAD = 5;
 
 /**
  * The model's expected wait now, +30, +60, +90 as one small line. All rows share one y-scale
- * (0..yMax) so a spiked pavilion stands out. Time runs in reading direction, like the ledger columns.
+ * (0..yMax) so a spiked pavilion stands out. Time runs right to left, like the ledger columns.
  */
-export function Sparkline({ values, yMax, rtl }: { values: number[]; yMax: number; rtl: boolean }) {
+export function Sparkline({ values, yMax }: { values: number[]; yMax: number }) {
   const n = values.length;
-  const x = (i: number) => {
-    const v = PAD + (i * (W - 2 * PAD)) / Math.max(1, n - 1);
-    return rtl ? W - v : v;
-  };
+  const x = (i: number) => W - (PAD + (i * (W - 2 * PAD)) / Math.max(1, n - 1));
   const y = (v: number) => H - PAD - (Math.min(v, yMax) / yMax) * (H - 2 * PAD);
   const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
   const base = (H - PAD).toFixed(1);

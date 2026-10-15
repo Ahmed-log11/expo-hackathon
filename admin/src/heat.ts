@@ -36,7 +36,3 @@ export function heatFill(v: number, max: number): { bg: string; fg: string } | n
   const vsWhite = 1.05 / (l + 0.05);
   return { bg: `rgb(${c.join(',')})`, fg: vsInk >= vsWhite ? INK : '#FFFFFF' };
 }
-
-/** CSS gradient for the legend: the same ramp, few -> many in reading direction. */
-export const heatGradient = (rtl: boolean) => `linear-gradient(to ${rtl ? 'left' : 'right'}, ${
-  [0.12, 0.3, 0.5, 0.7, 0.85, 1].map((t) => `rgb(${at(t).join(',')})`).join(', ')})`;

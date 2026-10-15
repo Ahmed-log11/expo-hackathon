@@ -1,0 +1,70 @@
+import type { ApiError } from './api';
+
+/** Every piece of text on the dashboard. {name} placeholders are filled in by t(). */
+const AR = {
+  brand: 'انسياب',
+  title: 'لوحة التشغيل',
+  live: 'مباشر',
+  connecting: 'جارٍ الاتصال بالخادم…',
+  waking: 'الخادم يستيقظ، قد يستغرق ذلك دقيقة…',
+  offline: 'انقطع الاتصال بالخادم',
+  demo: 'أدوات المحاكاة',
+
+  kpiSaved: 'دقائق انتظار وفّرناها للزوار',
+  kpiUnit: 'دقيقة',
+  kpiActive: 'زوار في الموقع الآن',
+  kpiOffers: 'عروض إعادة التوجيه',
+  kpiOffersSub: 'قُبل منها {acc}',
+  kpiWait: 'متوسط الانتظار الآن',
+
+  min: '{n} د',
+  low: 'منخفض',
+  medium: 'متوسط',
+  high: 'مزدحم',
+
+  groupNow: 'الآن',
+  groupForecast: 'توقع النموذج',
+  groupLedger: 'سجل التوزيع: من سنرسلهم خلال الساعتين القادمتين',
+  colPavilion: 'الجناح',
+  colWait: 'الانتظار',
+  colQueue: 'في الطابور',
+  colForecast: 'حتى 90 د القادمة',
+  colTotal: 'المجموع',
+  forecastTip: 'الآن {a} · بعد 30 د: {b} · بعد 60 د: {c} · بعد 90 د: {d}',
+
+  simTitle: 'محاكاة زوار',
+  simProgress: '{done} من {total}',
+  simFailed: 'تعذّر: {n}',
+  simDone: 'اكتملت المحاكاة: {n}',
+  stop: 'إيقاف',
+  spikeTitle: 'ازدحام مفاجئ',
+  spikeWait: 'دقائق الانتظار',
+  spikeBtn: 'ارفع الانتظار',
+  spikeDone: 'تم: تنبيهات {alerts} · عروض {offers}',
+  resetTitle: 'إعادة الضبط',
+  resetHint: 'يمسح القياسات والعروض والحجوزات، ويُبقي الزوار.',
+  resetBtn: 'إعادة الضبط',
+  resetConfirm: 'اضغط مرة أخرى للتأكيد',
+  resetDone: 'تمت إعادة الضبط',
+  token: 'رمز العرض',
+  tokenPlaceholder: 'DEMO_TOKEN (اختياري)',
+  close: 'إغلاق',
+
+  errForbidden: 'الخادم يطلب رمز العرض الصحيح',
+  errClosed: 'المعرض مغلق الآن (يفتح 10:00–24:00)، فلا يمكن بدء زيارات',
+  errNetwork: 'تعذّر الوصول إلى الخادم',
+  errGeneric: 'خطأ: {msg}',
+};
+
+export type Key = keyof typeof AR;
+
+export const t = (key: Key, vars?: Record<string, string | number>): string =>
+  AR[key].replace(/\{(\w+)\}/g, (_, k: string) => String(vars?.[k] ?? ''));
+
+/** A friendly message for a failed request. */
+export function errorText(e: ApiError): string {
+  if (e.status === 403) return t('errForbidden');
+  if (e.code === 'outside_opening_hours') return t('errClosed');
+  if (e.status === 0) return t('errNetwork');
+  return t('errGeneric', { msg: e.message });
+}
