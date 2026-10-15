@@ -121,9 +121,30 @@ async def crowd_loop() -> None:
         await push_offers()
 
 
+SIM_VISITORS = int(os.getenv("SIM_VISITORS", "2000"))   # simulated visitors per day (0 = empty Expo)
+SIM_GROUP = int(os.getenv("SIM_GROUP", "50"))           # people each one stands for
+SIM_DAYS = int(os.getenv("SIM_DAYS", "2"))              # today and tomorrow (plans can be for tomorrow)
+sim_state = {"days": [], "bots_per_day": 0}
+
+
+def seed_simulated_visitors() -> None:
+    """Fill the demo Expo with simulated visitors (engine/seed.py), so plans and the map react
+    to a realistic crowd. Each run gives the same crowd for the same day."""
+    from engine.seed import seed_day
+    sim_state["days"], start = [], now()
+    for d in range(SIM_DAYS):
+        day = start + timedelta(days=d)
+        planned = seed_day(day, visitors=SIM_VISITORS, group=SIM_GROUP)
+        sim_state["days"].append(str(day.date()))
+        sim_state["bots_per_day"] = planned
+    log.info("simulated visitors: %s per day x %s people, days %s", SIM_VISITORS, SIM_GROUP, sim_state["days"])
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     engine.crowd_snapshot(now())   # warm-up: loads the ML model now, not on the first visitor
+    if SIM_VISITORS > 0:
+        seed_simulated_visitors()
     task = asyncio.create_task(crowd_loop())
     yield
     task.cancel()
@@ -184,6 +205,7 @@ def _visitor(vid: str) -> dict:
 def health():
     return {"status": "ok", "time": now().isoformat(), "engine": engine.__name__,
             "walkways": engine.GRAPH_SOURCE,
+            "simulated_visitors": {"per_day": SIM_VISITORS, "people_each": SIM_GROUP, "days": sim_state["days"]},
             "llm": "on" if os.getenv("ANTHROPIC_API_KEY") else "fallback"}
 
 
@@ -499,6 +521,8 @@ async def debug_reset(token: str | None = None):
     """Demo control: clear observations, offers and ledger bookings, then push fresh crowd levels."""
     _check_token(token)
     engine.clear_live_state()
+    if SIM_VISITORS > 0:
+        seed_simulated_visitors()    # the ledger was cleared: bring the simulated crowd back
     await live.broadcast(crowd_message())
     return {"ok": True}
 

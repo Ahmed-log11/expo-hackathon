@@ -64,6 +64,16 @@ class Ledger:
             self.bookings[visitor_id] = keep
 
     # ---- reads ----
+    def recent_backlog(self, pid: str, now: datetime, lookback_h: float = 2.0) -> float:
+        """People still in line at `now` from bookings in the last few hours (this slot included).
+        Used when nobody has measured the queue: the visitors we sent recently are standing in it."""
+        served = rate_per_min(pid) * SLOT_MIN
+        s0, arr = self.slot(now), self.arrivals[pid]
+        backlog = 0.0
+        for s in range(max(0, s0 - int(lookback_h * 60 / SLOT_MIN)), s0 + 1):
+            backlog = max(0.0, backlog + arr[s] - (served if s < s0 else 0.0))
+        return backlog
+
     def forecast(self, pid: str, now: datetime, queue_now: float = 0.0) -> "Outlook":
         """Waits for arriving at pid in each slot from now on (see Outlook.wait_at).
         Only the next TRUST_H hours of bookings are simulated; after that the queue just

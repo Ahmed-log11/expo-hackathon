@@ -136,6 +136,7 @@ export function PlanReady() {
 
   const totals = route?.totals;
   const saved = totals?.saved_wait_min ?? 0;
+  const meaningful = saved >= 5;   // under 5 min the two bars would look identical
   const baseline = totals?.baseline_wait_min ?? totals?.wait_min ?? 0;
   const wait = totals?.wait_min ?? 0;
   const hours = Math.round((plan.end.getTime() - plan.start.getTime()) / 3600_000);
@@ -220,18 +221,22 @@ export function PlanReady() {
                 <Icon name="wait" size={24} color={C.aqua} />
               </View>
               <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                <Txt style={[ar(400, 13, 21), { color: 'rgba(7,60,58,0.78)' }]}>{saved > 0 ? 'قد توفر لك خطتك نحو' : 'ترتيبك الحالي هو الأقل انتظارًا'}</Txt>
+                <Txt style={[ar(400, 13, 21), { color: 'rgba(7,60,58,0.78)' }]}>{meaningful ? 'قد توفر لك خطتك نحو' : 'ترتيبك هو الأفضل الآن'}</Txt>
                 {/* The impact number is the memorable part; its unit phrase stays smaller on the same line. */}
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: s(6) }}>
-                  <Txt style={[ar(600, 15, 22), { color: C.deep }]}>{saved > 0 ? 'من الانتظار' : 'انتظار متوقع'}</Txt>
-                  <Txt style={[ar(700, 30, 40), { color: C.deep }]}>{fmtDuration(saved > 0 ? saved : wait)}</Txt>
+                  <Txt style={[ar(600, 15, 22), { color: C.deep }]}>{meaningful ? 'من الانتظار' : 'انتظار متوقع'}</Txt>
+                  <Txt style={[ar(700, 30, 40), { color: C.deep }]}>{fmtDuration(meaningful ? saved : wait)}</Txt>
                 </View>
               </View>
             </View>
-            <View style={{ gap: s(8) }}>
+            {/* Two near-identical bars look like a bug: compare only when the plan really saves time. */}
+            {!meaningful && (
+              <Txt style={[ar(400, 13, 21), { color: C.slate, textAlign: 'right' }]}>الزحمة متقاربة الآن، فأي ترتيب يعطي نفس الانتظار تقريبًا.</Txt>
+            )}
+            {meaningful && <View style={{ gap: s(8) }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Txt style={[ar(400, 13, 21), { color: C.slate }]}>{`${fmtDuration(baseline)} انتظار`}</Txt>
-                <Txt style={[ar(400, 13, 21), { color: C.slate }]}>ترتيب معتاد</Txt>
+                <Txt style={[ar(400, 13, 21), { color: C.slate }]}>لو بدأت بالأشهر</Txt>
               </View>
               <Bar fraction={1} color={C.muted} delay={300} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -239,7 +244,7 @@ export function PlanReady() {
                 <Txt style={[ar(600, 13, 19), { color: C.deep }]}>خطتك</Txt>
               </View>
               <Bar fraction={yours} color={C.aqua} delay={500} />
-            </View>
+            </View>}
           </View>
 
           {/* flow timeline */}

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from engine.crowd_state import CrowdState, rate_per_min
+from engine.crowd_state import CrowdState, rate_per_min, PERSIST_MIN
 from engine.ledger import Ledger
 from engine.site import DEFAULT_START, PAVILIONS, walk
 
@@ -70,8 +70,9 @@ class Forecast:
         wait(pid, t) = background(pid, t)   crowd_state: observed wait held, then faded to normal
                      + routed(pid, t)       ledger: queue our FUTURE bookings will add (with ledger)
 
-    Visitors already standing in line are inside the observation; the ledger only adds
-    bookings after now, so nobody is counted twice."""
+    Visitors already standing in line are inside a fresh observation, so the ledger then only
+    adds bookings after now (nobody is counted twice). Without one, the ledger also starts
+    from the people it booked recently who are still queuing (Ledger.recent_backlog)."""
 
     def __init__(self, now: datetime, use_ledger: bool = True) -> None:
         self.now, self.use_ledger = now, use_ledger
@@ -83,7 +84,12 @@ class Forecast:
         if not self.use_ledger:
             return background
         if pid not in self._cache:
-            self._cache[pid] = self.led.forecast(pid, self.now, 0.0)
+            # A fresh measurement already contains the people in line; without one, the
+            # visitors we booked in the last hours are standing in it, so start from them.
+            obs = CROWD.observed.get(pid)
+            measured = obs is not None and abs((self.now - obs[1]).total_seconds()) <= PERSIST_MIN * 60
+            q0 = 0.0 if measured else self.led.recent_backlog(pid, self.now)
+            self._cache[pid] = self.led.forecast(pid, self.now, q0)
         return background + self._cache[pid].wait_at(self.led.slot(t))
 
 
@@ -230,17 +236,18 @@ def _materialize(visitor_id: str, order: list[str], here: str, t: datetime,
 
 
 def _baseline_wait(pids: list[str], here: str, t0: datetime, use_ledger: bool) -> int:
-    """What the same stops would cost visited the usual way: always walk to the nearest one
-    next, ignoring queues. This is the "usual order" on the plan-ready screen."""
-    fc, cur, t, left, total = Forecast(t0, use_ledger), here, t0, list(pids), 0
-    while left:
-        nxt = min(left, key=lambda p: walk(cur, p)["minutes"])
+    """What the same stops would cost visited the way crowds do without the app: the most
+    famous pavilion first (most popular; nearest breaks ties), going straight into each line.
+    Same forecast and same crowd as the plan, so the comparison is fair. This is the
+    "usual order" on the plan-ready screen."""
+    order = sorted(pids, key=lambda p: (-PAVILIONS[p].get("popularity", 0), walk(here, p)["minutes"]))
+    fc, cur, t, total = Forecast(t0, use_ledger), here, t0, 0
+    for nxt in order:
         arrive = t + timedelta(minutes=walk(cur, nxt)["minutes"])
         wait = round(fc.wait(nxt, arrive))
         total += wait
         t = arrive + timedelta(minutes=wait + PAVILIONS[nxt]["avg_visit_min"])
         cur = nxt
-        left.remove(nxt)
     return total
 
 

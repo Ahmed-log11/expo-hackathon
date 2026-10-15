@@ -61,7 +61,7 @@ Errors (`422`): `empty_interests`, `unknown_interest`, `unknown_pavilion`, `unkn
 | `version` | Increments on every replan. The app ignores a reroute with a version ≤ the one it has. |
 | `stops[]` | `order, pavilion_id, walk_from_prev_min, walk_m, arrive_at, wait_min, visit_min, leave_at, path[], landmarks[]`. `path` and `landmarks` hold place IDs; the app shows `name_en` or `name_ar` from `/pavilions`. `shaded_pct` = share of the walk in shade. |
 | `totals` | `walk_min, wait_min, stops` |
-| `totals` | `walk_min, wait_min, stops, distance_km`; on a new plan also `baseline_wait_min` (the same stops visited the usual way: always walking to the nearest next, ignoring queues) and `saved_wait_min` (= baseline - wait, never negative) for "this plan saves you X". It can honestly be 0 when the usual order is already the best. |
+| `totals` | `walk_min, wait_min, stops, distance_km`; on a new plan also `baseline_wait_min` (the same stops visited the way crowds do without the app: most famous first, straight into each line; same forecast and crowd as the plan) and `saved_wait_min` (= baseline - wait, never negative) for "this plan saves you X". It can honestly be 0 when the usual order is already the best. |
 | `feasibility` | `fits, requested, dropped[], too_busy[]`. `dropped` = every wish not on the route; `too_busy` = the subset skipped because the queue is too long the whole visit (over 60 min for suggested pavilions, over 150 min at its quietest for picked ones). |
 | `summary` | `null` for now. Will hold the LLM summary, filled after the route (the app never waits on it). |
 
