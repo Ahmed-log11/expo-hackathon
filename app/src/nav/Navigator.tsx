@@ -1,16 +1,20 @@
 /**
- * A small stack navigator that reproduces the Figma prototype's screen transitions:
- *   push     Figma "Push → Right" 350 ms ease-out: the new screen enters from the LEFT (RTL forward)
- *   back     the reverse: the current screen leaves to the left, the previous one comes back from the right
- *   dissolve 300 ms cross-fade
- *   moveIn   Figma "Move in ↑" 380 ms: the new screen rises from the bottom
+ * A small stack navigator. Screens never slide across the whole width: the journey stays in one place and
+ * only what changes moves (INSYAB motion language, tokens in theme M).
+ *   push     fade-through forward: the new screen fades in over the current one while drifting up M.drift
+ *   back     fade-through back: the current screen fades out (drifting down slightly) over the previous one
+ *   dissolve cross-fade (tabs, Generating → Plan Ready, Journey)
+ *   moveIn   detail / arrival: rises a short distance and fades in, like a sheet settling
  *   moveOut  the reverse of moveIn
+ * Identical chrome (status area, wizard nav bar, tab bar) sits in the same place on both screens and the
+ * outgoing screen stays opaque underneath, so it reads as fixed while the content changes.
+ * With Reduce Motion on, every transition is a short plain cross-fade.
  * Screens stay mounted while they are in the stack, so a step keeps its state when you come back to it.
  */
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import Animated, { SharedValue, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { M, SCREEN } from '../theme';
+import { M, s } from '../theme';
 
 export type Transition = 'push' | 'back' | 'dissolve' | 'fadeOut' | 'moveIn' | 'moveOut' | 'none';
 export type Entry = { key: string; name: string; params?: any };
@@ -33,7 +37,10 @@ export function useRoute<P = any>() {
   return useContext(RouteCtx) as Entry & { params: P };
 }
 
-const DURATION: Record<Transition, number> = { push: 350, back: 350, dissolve: 300, fadeOut: 300, moveIn: 380, moveOut: 360, none: 0 };
+const DURATION: Record<Transition, number> = {
+  push: M.step, back: M.step, dissolve: M.quick + 20, fadeOut: M.quick + 20, moveIn: M.emphasized, moveOut: M.step + 20, none: 0,
+};
+const REDUCED_MS = 160;
 
 let seq = 0;
 // The time part keeps keys unique after a Fast Refresh resets `seq` while the stack keeps its old keys.
@@ -46,6 +53,14 @@ export function Navigator({ screens, initial }: { screens: Record<string, React.
   const busy = useRef(false);
   const stackRef = useRef(stack);
   stackRef.current = stack;
+  const [reduced, setReduced] = useState(false);
+  const reducedRef = useRef(false);
+  useEffect(() => {
+    const set = (v: boolean) => { reducedRef.current = v; setReduced(v); };
+    AccessibilityInfo.isReduceMotionEnabled().then(set).catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', set);
+    return () => sub.remove();
+  }, []);
 
   const finish = useCallback((removeAfter?: string[]) => {
     if (removeAfter?.length) setStack((st) => st.filter((e) => !removeAfter.includes(e.key)));
@@ -57,10 +72,14 @@ export function Navigator({ screens, initial }: { screens: Record<string, React.
     busy.current = true;
     setAnim(a);
     p.value = 0;
-    const d = DURATION[a.type];
+    const d = a.type === 'none' ? 0 : reducedRef.current ? REDUCED_MS : DURATION[a.type];
     if (d === 0) { p.value = 1; finish(a.removeAfter); return; }
-    p.value = withTiming(1, { duration: d, easing: M.easeOut }, (done) => {
-      if (done) runOnJS(finish)(a.removeAfter);
+    const easing = a.type === 'moveIn' ? M.continuity : M.flowOut;
+    // Start on the next frame: the incoming screen's first frame must render at p = 0 (no one-frame flash).
+    requestAnimationFrame(() => {
+      p.value = withTiming(1, { duration: d, easing }, (done) => {
+        if (done) runOnJS(finish)(a.removeAfter);
+      });
     });
   }, [finish, p]);
 
@@ -103,10 +122,10 @@ export function Navigator({ screens, initial }: { screens: Record<string, React.
       <View style={StyleSheet.absoluteFill}>
         {stack.map((e) => {
           const role: Role = anim ? (e.key === anim.to ? 'in' : e.key === anim.from ? 'out' : 'idle') : 'idle';
-          const visible = role !== 'idle' || (!anim && e.key === topKey) || (anim?.type === 'back' && e.key === anim.to);
+          const visible = role !== 'idle' || (!anim && e.key === topKey);
           const Screen = screens[e.name];
           return (
-            <SceneView key={e.key} role={role} type={anim?.type ?? 'none'} p={p} visible={visible} interactive={!anim && e.key === topKey} back={anim?.type === 'back' || anim?.type === 'moveOut'}>
+            <SceneView key={e.key} role={role} type={anim?.type ?? 'none'} p={p} visible={visible} interactive={!anim && e.key === topKey} reduced={reduced}>
               <RouteCtx.Provider value={e}>
                 <Screen />
               </RouteCtx.Provider>
@@ -120,48 +139,41 @@ export function Navigator({ screens, initial }: { screens: Record<string, React.
 
 type Role = 'in' | 'out' | 'idle';
 
-function SceneView({ role, type, p, visible, interactive, back, children }: {
-  role: Role; type: Transition; p: SharedValue<number>; visible: boolean; interactive: boolean; back: boolean;
+function SceneView({ role, type, p, visible, interactive, reduced, children }: {
+  role: Role; type: Transition; p: SharedValue<number>; visible: boolean; interactive: boolean; reduced: boolean;
   children: React.ReactNode;
 }) {
-  const W = SCREEN.W, H = SCREEN.H;
+  const drift = s(M.drift);
+  const rise = s(48);                       // moveIn: a short rise, not the full screen height
+  // Which screen moves: forward transitions animate the incoming (top) screen; back transitions the outgoing one.
+  const leaving = type === 'back' || type === 'fadeOut' || type === 'moveOut';
   const style = useAnimatedStyle(() => {
     const t = p.value;
-    if (role === 'idle') return { transform: [{ translateX: 0 }, { translateY: 0 }], opacity: 1 };
+    const still = { opacity: 1, transform: [{ translateY: 0 }, { scale: 1 }] };
+    if (role === 'idle' || type === 'none') return still;
+    const moving = leaving ? role === 'out' : role === 'in';
+    if (!moving) return still;              // the screen underneath stays put and opaque
+    const k = leaving ? t : 1 - t;          // 0 = settled, 1 = fully away
+    if (reduced) return { opacity: 1 - k, transform: [{ translateY: 0 }, { scale: 1 }] };
     switch (type) {
       case 'push':
-        return role === 'in'
-          ? { transform: [{ translateX: -W * (1 - t) }, { translateY: 0 }], opacity: 1 }
-          : { transform: [{ translateX: W * t }, { translateY: 0 }], opacity: 1 };
+        return { opacity: 1 - k, transform: [{ translateY: drift * k }, { scale: 1 - 0.015 * k }] };
       case 'back':
-        return role === 'out'
-          ? { transform: [{ translateX: -W * t }, { translateY: 0 }], opacity: 1 }
-          : { transform: [{ translateX: W * (1 - t) }, { translateY: 0 }], opacity: 1 };
-      case 'dissolve':
-        return role === 'in'
-          ? { transform: [{ translateX: 0 }, { translateY: 0 }], opacity: t }
-          : { transform: [{ translateX: 0 }, { translateY: 0 }], opacity: 1 };
-      case 'fadeOut':
-        // going back with a cross-fade: the top screen fades away to reveal the one below
-        return role === 'out'
-          ? { transform: [{ translateX: 0 }, { translateY: 0 }], opacity: 1 - t }
-          : { transform: [{ translateX: 0 }, { translateY: 0 }], opacity: 1 };
+        return { opacity: 1 - k, transform: [{ translateY: drift * 0.75 * k }, { scale: 1 - 0.015 * k }] };
       case 'moveIn':
-        return role === 'in'
-          ? { transform: [{ translateX: 0 }, { translateY: H * (1 - t) }], opacity: 1 }
-          : { transform: [{ translateX: 0 }, { translateY: 0 }], opacity: 1 };
       case 'moveOut':
-        return role === 'out'
-          ? { transform: [{ translateX: 0 }, { translateY: H * t }], opacity: 1 }
-          : { transform: [{ translateX: 0 }, { translateY: 0 }], opacity: 1 };
-      default:
-        return { transform: [{ translateX: 0 }, { translateY: 0 }], opacity: role === 'in' ? 1 : 0 };
+        return { opacity: 1 - k, transform: [{ translateY: rise * k }, { scale: 1 }] };
+      default:                              // dissolve, fadeOut
+        return { opacity: 1 - k, transform: [{ translateY: 0 }, { scale: 1 }] };
     }
-  }, [role, type, back]);
+  }, [role, type, reduced, leaving]);
+  // A screen that is about to fade in starts invisible on its very first frame (before the UI-thread
+  // animation has taken over), so it never flashes at full opacity.
+  const hiddenAtStart = role === 'in' && !leaving && type !== 'none';
   return (
     <Animated.View
       pointerEvents={interactive ? 'auto' : 'none'}
-      style={[StyleSheet.absoluteFill, style, { display: visible ? 'flex' : 'none' }]}
+      style={[StyleSheet.absoluteFill, style, { display: visible ? 'flex' : 'none' }, hiddenAtStart ? { opacity: 0 } : null]}
     >
       {children}
     </Animated.View>

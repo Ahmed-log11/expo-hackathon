@@ -234,47 +234,130 @@ const INTERESTS: { key: string; label: string; icon: IconName; photo: keyof type
   { key: 'humanity', label: 'الإنسانية', icon: 'family', photo: 'interactive' },
   { key: 'collaboration', label: 'التعاون', icon: 'globe', photo: 'aerial_sunset' },
 ];
+const INTEREST_KEYS = INTERESTS.map((i) => i.key);
+
+/** How common each interest tag is across the pavilions (to tell a real signal from a tag most pavilions share). */
+const TAG_FREQ: Record<string, number> = (() => {
+  const f: Record<string, number> = {};
+  for (const id of PAVILION_IDS) for (const t of PLACES[id]?.tags ?? []) f[t] = (f[t] ?? 0) + 1;
+  return f;
+})();
+
+/** The interest cards that the pavilions the AI (or its keyword fallback) picked for the visitor's words point to.
+ *  A themed pavilion ("جناح التقنية") is its theme; other pavilions add their tags, weighted by how rare the tag is. */
+function interestsFrom(ids: string[]): string[] {
+  const score: Record<string, number> = {};
+  for (const id of ids) {
+    if (id.startsWith('th_') && INTEREST_KEYS.includes(id.slice(3))) score[id.slice(3)] = (score[id.slice(3)] ?? 0) + 1;
+    for (const t of PLACES[id]?.tags ?? []) if (TAG_FREQ[t]) score[t] = (score[t] ?? 0) + 1 / TAG_FREQ[t];
+  }
+  const top = Math.max(0, ...Object.values(score));
+  return top ? INTEREST_KEYS.filter((k) => (score[k] ?? 0) >= 0.6 * top) : [];
+}
+
+const labelOf = (k: string) => INTERESTS.find((i) => i.key === k)?.label ?? k;
 
 export function PlanInterests() {
   const nav = useNav();
   const { plan, setPlan } = useStore();
-  const toggle = (k: string) => setPlan({ tags: plan.tags.includes(k) ? plan.tags.filter((t) => t !== k) : [...plan.tags, k] });
-  const rows = [INTERESTS.slice(0, 2), INTERESTS.slice(2, 4), INTERESTS.slice(4, 6)];
+  const [reading, setReading] = useState(false);
+  const [understood, setUnderstood] = useState<{ text: string; tags: string[]; failed?: boolean }>();
+  const autoTags = useRef<string[]>([]);        // cards selected from the visitor's words (replaced when the words change)
+  const latest = useRef(plan.text);
+  latest.current = plan.text;
+  const tagsNow = useRef(plan.tags);
+  tagsNow.current = plan.tags;
+
+  const toggle = (k: string) => {
+    autoTags.current = autoTags.current.filter((t) => t !== k);   // a tapped card is now the visitor's own choice
+    setPlan({ tags: plan.tags.includes(k) ? plan.tags.filter((t) => t !== k) : [...plan.tags, k] });
+  };
+
+  /** Read the visitor's words with the existing POST /wishlist (AI, or the server's keyword fallback). */
+  const read = async (raw: string) => {
+    const text = raw.trim();
+    if (text.length < 3 || understood?.text === text) return;
+    setReading(true);
+    try {
+      const r = await backend.previewWishlist(text, 'ar');
+      if (latest.current.trim() !== text) return;                     // they kept typing: a newer read follows
+      const ids = r.items.map((i) => i.pavilion_id).filter((id) => PLACES[id]);
+      const tags = interestsFrom(ids);
+      // Step 3 reuses this answer (same cache it fills itself), so the AI isn't asked twice.
+      const own = tagsNow.current.filter((t) => !autoTags.current.includes(t));   // cards the visitor picked themselves
+      setPlan({ aiIds: ids, aiFor: text, tags: [...new Set([...own, ...tags])] });
+      autoTags.current = tags.filter((t) => !own.includes(t));
+      setUnderstood({ text, tags });
+    } catch {
+      if (latest.current.trim() === text) setUnderstood({ text, tags: [], failed: true });
+    } finally {
+      if (latest.current.trim() === text) setReading(false);
+    }
+  };
+
+  // Read shortly after they stop typing (and on "done").
+  useEffect(() => {
+    const text = plan.text.trim();
+    if (text.length < 3) { setUnderstood(undefined); return; }
+    const t = setTimeout(() => read(text), 900);
+    return () => clearTimeout(t);
+  }, [plan.text]);
+
   const n = plan.tags.length;
+  const textNow = plan.text.trim();
+  const status = !textNow ? null
+    : reading ? { tone: 'muted', text: 'نقرأ اهتماماتك…' }
+    : understood?.text !== textNow ? null
+    : understood.failed ? { tone: 'muted', text: 'ما قدرنا نقرأ كلامك الآن، اختر من الاهتمامات تحت.' }
+    : understood.tags.length ? { tone: 'ok', text: `فهمنا من كلامك: ${understood.tags.map(labelOf).join('، ')}` }
+    : { tone: 'muted', text: 'ما قدرنا نحدد اهتمامًا من كلامك، اختر من الاهتمامات تحت.' };
+
   return (
     <WizardFrame
       step={2}
       scroll
       title="وش تحب تكتشف؟"
-      subtitle="اكتب ما تحب أو اختر اهتماماتك، ونرتّب يومك حولها."
-      footer={<Button label="التالي" disabled={n === 0 && !plan.text.trim()} style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanMustVisit')} />}
+      subtitle="اكتب اللي تحبه بكلماتك، أو اختر من الاهتمامات."
+      footer={<Button label="التالي" disabled={n === 0 && !textNow} style={{ alignSelf: 'stretch' }} onPress={() => nav.push('PlanMustVisit')} />}
     >
-      <View style={{ marginTop: s(20), paddingHorizontal: s(16), gap: s(16) }}>
-        {/* Their own words: read by the AI, which picks pavilions that match. First on the page. */}
+      <View style={{ marginTop: s(20), paddingHorizontal: s(16), gap: s(14) }}>
+        {/* their own words: read by the AI (or the server's keyword fallback), which selects the matching cards */}
         <View style={{ gap: s(8) }}>
-          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: s(6) }}>
-            <Icon name="plan" size={18} color={C.aquaText} />
-            <Txt style={[ar(600, 15, 22), { color: C.ink }]}>اكتب ما تحب بكلماتك</Txt>
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'flex-start', gap: s(8), backgroundColor: C.white, borderRadius: s(18), borderWidth: s(1), borderColor: C.line, paddingHorizontal: s(14), paddingVertical: s(4) }}>
+            <Icon name="plan" size={20} color={C.aquaText} style={{ marginTop: s(12) }} />
+            <TextInput
+              value={plan.text}
+              onChangeText={(t) => setPlan({ text: t })}
+              onSubmitEditing={() => read(plan.text)}
+              onBlur={() => read(plan.text)}
+              placeholder="مثلاً: أحب الفضاء والأكل الياباني، ومعي أطفال"
+              placeholderTextColor={C.muted}
+              multiline
+              blurOnSubmit
+              returnKeyType="done"
+              maxLength={300}
+              style={{ flex: 1, fontFamily: ar(400, 16).fontFamily, fontSize: s(16), minHeight: s(52), maxHeight: s(110), textAlign: 'right', writingDirection: 'rtl', color: C.ink, paddingVertical: s(10) }}
+            />
           </View>
-          <TextInput
-            value={plan.text}
-            onChangeText={(t) => setPlan({ text: t })}
-            placeholder="مثلًا: أحب الفضاء والأكل الياباني، ومعي أطفال"
-            placeholderTextColor={C.muted}
-            multiline
-            maxLength={300}
-            style={{ fontFamily: ar(400, 16).fontFamily, fontSize: s(16), minHeight: s(72), textAlign: 'right', writingDirection: 'rtl', color: C.ink, backgroundColor: C.white, borderRadius: s(18), borderWidth: s(1), borderColor: C.line, paddingHorizontal: s(14), paddingVertical: s(10) }}
-          />
+          {status && (
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: s(6), minHeight: s(22) }}>
+              {reading ? <ActivityIndicator size="small" color={C.aquaText} /> : <Icon name={status.tone === 'ok' ? 'check' : 'info'} size={16} color={status.tone === 'ok' ? C.aquaText : C.slate2} />}
+              <Txt style={[ar(500, 13, 19), { color: status.tone === 'ok' ? C.aquaText : C.slate2, flex: 1 }]}>{status.text}</Txt>
+            </View>
+          )}
         </View>
-        {/* ...or pick from the interest cards */}
-        <Txt style={[ar(600, 15, 22), { color: C.ink, textAlign: 'right', marginTop: s(4) }]}>أو اختر من الاهتمامات</Txt>
-        {/* Selection count sits right above the cards it counts. */}
-        <View style={{ minHeight: s(27), flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: s(6), marginTop: s(-8), marginBottom: s(-4) }}>
-          <Txt style={[ar(600, 13, 19), { color: n === 0 ? C.slate : C.aquaText }]}>{n === 0 ? 'اختر اهتمامًا أو اكتب ما تحب' : n === 1 ? 'اهتمام واحد مختار' : n === 2 ? 'اهتمامان مختاران' : `${n} اهتمامات مختارة`}</Txt>
-          {n > 0 && <View style={{ width: s(18), height: s(18), borderRadius: s(9), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}><Icon name="check" size={12} color={C.ink} /></View>}
+
+        {/* section header + live selection count */}
+        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginTop: s(6), minHeight: s(27) }}>
+          <Txt style={[ar(600, 15, 22), { color: C.ink }]}>اهتمامات مقترحة لك</Txt>
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: s(6) }}>
+            {n > 0 && <View style={{ width: s(16), height: s(16), borderRadius: s(8), backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' }}><Icon name="check" size={11} color={C.aquaText} /></View>}
+            <Txt style={[ar(600, 13, 19), { color: n === 0 ? C.slate : C.aquaText }]}>{n === 0 ? 'اكتب ما تحب أو اختر اهتمامًا' : `تم اختيار ${n}`}</Txt>
+          </View>
         </View>
-        {rows.map((row, i) => (
-          // Row order in Figma is left → right; the first interest sits on the right (RTL).
+
+        {[INTERESTS.slice(0, 2), INTERESTS.slice(2, 4), INTERESTS.slice(4, 6)].map((row, i) => (
+          // The first interest sits on the right (RTL).
           <View key={i} style={{ flexDirection: 'row-reverse', gap: s(16) }}>
             {row.map((it) => <InterestCard key={it.key} item={it} selected={plan.tags.includes(it.key)} onPress={() => toggle(it.key)} />)}
           </View>
@@ -286,7 +369,7 @@ export function PlanInterests() {
 
 function InterestCard({ item, selected, onPress }: { item: typeof INTERESTS[number]; selected: boolean; onPress: () => void }) {
   return (
-    <Pressy onPress={onPress} style={{ width: s(177), height: s(150) }}>
+    <Pressy onPress={onPress} style={{ width: s(177), height: s(140) }}>
       <View style={{ flex: 1, borderRadius: s(24), overflow: 'hidden' }}>
         <Image source={PHOTOS[item.photo]} style={StyleSheet.absoluteFill} contentFit="cover" />
         <LinearGradient colors={['rgba(8,38,36,0)', 'rgba(8,38,36,0.72)']} style={StyleSheet.absoluteFill} />
@@ -298,8 +381,8 @@ function InterestCard({ item, selected, onPress }: { item: typeof INTERESTS[numb
         </View>
         {selected && (
           <Animated.View entering={FadeIn.duration(M.standard)} exiting={FadeOut.duration(M.fast)} style={[StyleSheet.absoluteFill, { borderRadius: s(24), borderWidth: s(3), borderColor: C.aqua }]} pointerEvents="none">
-            <View style={{ position: 'absolute', left: s(9), top: s(9), width: s(28), height: s(28), borderRadius: s(15), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="check" size={18} color={C.ink} />
+            <View style={{ position: 'absolute', left: s(10), top: s(10), width: s(22), height: s(22), borderRadius: s(11), backgroundColor: C.aqua, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="check" size={14} color={C.ink} />
             </View>
           </Animated.View>
         )}

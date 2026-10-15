@@ -109,6 +109,10 @@ function Node({ x, y, clock }: { x: number; y: number; clock: SharedValue<number
 // The mini map shows the full site at 60% (241 x 524 at x = 80, y = -42).
 const MINI = { x: 80, y: -42, k: 241 / 402 };
 
+/** One-shot "settle in" for Plan Ready's blocks: fade up M.drift, staggered by `delay` ms. */
+const settle = (delay: number) =>
+  FadeInDown.delay(delay).duration(M.step).easing(M.flowOut).withInitialValues({ opacity: 0, transform: [{ translateY: s(M.drift) }] });
+
 export function PlanReady() {
   const nav = useNav();
   const safe = useSafe();
@@ -180,24 +184,24 @@ export function PlanReady() {
           paddingHorizontal: s(16), paddingTop: s(24), paddingBottom: footerH + s(8), gap: s(20), minHeight: s(VIEW_H - 342),
           boxShadow: `0px ${s(12)}px ${s(40)}px rgba(8,38,36,0.16)`,
         }}>
-          <View style={{ gap: s(8), alignItems: 'flex-end' }}>
+          <Animated.View entering={settle(60)} style={{ gap: s(8), alignItems: 'flex-end' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(8) }}>
               <Txt style={ar(700, 34, 46)}>خطتك جاهزة</Txt>
               {/* The font's ink sits ~0.13 em below its line box centre, so the dot drops 4 to line up with the letters. */}
               <View style={{ width: s(8), height: s(8), borderRadius: s(4), backgroundColor: C.aqua, top: s(4) }} />
             </View>
-            <View style={{ flexDirection: 'row', gap: s(8) }}>
+            <Animated.View entering={settle(110)} style={{ flexDirection: 'row', gap: s(8) }}>
               {[`${km} كم`, `${hours} ساعات`, `${stops.length} محطات`].map((t) => (
                 <View key={t} style={{ minHeight: s(36), borderRadius: s(14), backgroundColor: C.white, borderWidth: s(1), borderColor: C.line, paddingHorizontal: s(12), alignItems: 'center', justifyContent: 'center' }}>
                   <Txt style={ar(600, 15, 22)}>{t}</Txt>
                 </View>
               ))}
-            </View>
-          </View>
+            </Animated.View>
+          </Animated.View>
 
           {/* picked pavilions that don't fit: the visitor chose them, so this sits on top */}
           {dropped.length ? (
-            <View style={{ backgroundColor: C.modBg, borderRadius: s(20), borderWidth: s(1), borderColor: C.mod, padding: s(14), gap: s(10) }}>
+            <Animated.View entering={settle(160)} style={{ backgroundColor: C.modBg, borderRadius: s(20), borderWidth: s(1), borderColor: C.mod, padding: s(14), gap: s(10) }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(10) }}>
                 <View style={{ flex: 1, alignItems: 'flex-end', gap: s(2) }}>
                   <Txt style={[ar(700, 15, 22), { color: C.modText }]}>{`ما يتسع وقتك لـ ${dropped.length} من اختياراتك اليوم`}</Txt>
@@ -211,11 +215,11 @@ export function PlanReady() {
                 <Button label="عدّل الوقت" variant="secondary" size="medium" height={40} padX={14} onPress={() => nav.push('PlanTime')} />
                 <Txt style={[ar(500, 13, 19), { color: C.modText, flexShrink: 1 }]}>زد وقتك أو قلّل اختياراتك</Txt>
               </View>
-            </View>
+            </Animated.View>
           ) : null}
 
           {/* time saved vs the usual order */}
-          <View style={{ backgroundColor: C.mint, borderRadius: s(24), padding: s(18), gap: s(12) }}>
+          <Animated.View entering={settle(180)} style={{ backgroundColor: C.mint, borderRadius: s(24), padding: s(18), gap: s(12) }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: s(12) }}>
               <View style={{ width: s(44), height: s(44), borderRadius: s(22), backgroundColor: C.deep, alignItems: 'center', justifyContent: 'center' }}>
                 <Icon name="wait" size={24} color={C.aqua} />
@@ -245,14 +249,14 @@ export function PlanReady() {
               </View>
               <Bar fraction={yours} color={C.aqua} delay={500} />
             </View>}
-          </View>
+          </Animated.View>
 
           {/* flow timeline */}
           <View>
             {stops.map((st, i) => {
               const w = crowd[st.pavilion_id] != null && i === 0 ? crowd[st.pavilion_id] : st.wait_min;
               return (
-                <Animated.View key={st.pavilion_id} entering={FadeInDown.delay(200 + i * 80).duration(M.sheet)}>
+                <Animated.View key={st.pavilion_id} entering={settle(220 + i * 60)}>
                   <ItineraryRow n={i + 1} first={i === 0} last={i === stops.length - 1} id={st.pavilion_id} arrive={fmtTime(st.arrive_at)} walk={st.walk_from_prev_min} wait={w} />
                 </Animated.View>
               );
@@ -277,7 +281,9 @@ export function PlanReady() {
         onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}
         style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: s(16), paddingTop: s(28), paddingBottom: safe.ctaBottom }}
       >
-        <Button label="ابدأ الرحلة" icon="locate" variant="accent" disabled={!stops.length} onPress={() => nav.push('Journey', undefined, 'dissolve')} />
+        <Animated.View entering={settle(320)}>
+          <Button label="ابدأ الرحلة" icon="locate" variant="accent" disabled={!stops.length} onPress={() => nav.push('Journey', undefined, 'dissolve')} />
+        </Animated.View>
       </LinearGradient>
     </View>
   );

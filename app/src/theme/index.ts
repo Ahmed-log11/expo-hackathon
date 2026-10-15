@@ -142,6 +142,16 @@ export const M = {
   easeOut: Easing.bezier(0, 0, 0.58, 1),
   /** Camera pans only. */
   easeInOut: Easing.bezier(0.42, 0, 0.58, 1),
+
+  // ---- screen & state motion tokens (one language for the whole app) ----
+  /** Quick: tab content, small state swaps. */
+  quick: 200,
+  /** Standard: wizard steps, content fade-through, sheet content swaps. */
+  step: 260,
+  /** Emphasized: sheets and detail screens rising in. */
+  emphasized: 340,
+  /** How far content drifts during a fade-through (design units). */
+  drift: 8,
 };
 
 export const SCREEN = { W: SCREEN_W, H: SCREEN_H };

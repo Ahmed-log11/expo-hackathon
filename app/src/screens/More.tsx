@@ -196,7 +196,7 @@ export function Pavilion() {
           <Animated.View entering={FadeIn.duration(M.standard)} exiting={FadeOut.duration(M.standard)} style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(6,32,30,0.38)' }]}>
             <Pressable style={StyleSheet.absoluteFill} onPress={() => setSheet(false)} />
           </Animated.View>
-          <Animated.View entering={SlideInDown.duration(380).easing(M.continuity)} exiting={SlideOutDown.duration(M.sheet)}
+          <Animated.View entering={SlideInDown.duration(M.emphasized).easing(M.continuity)} exiting={SlideOutDown.duration(M.sheet)}
             style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: Math.max(s(249), safe.insetTop + s(16)), backgroundColor: C.canvas, borderTopLeftRadius: s(34), borderTopRightRadius: s(34), boxShadow: `0px ${s(12)}px ${s(40)}px rgba(8,38,36,0.16)` }}>
             {/* Header stays put; the forecast below scrolls when it is taller than the sheet. */}
             <View style={{ paddingHorizontal: s(16), paddingTop: s(8), paddingBottom: s(12), gap: s(12) }}>
