@@ -5,6 +5,7 @@ import { DemoDock } from './components/DemoDock';
 import { Header } from './components/Header';
 import { KpiRow } from './components/KpiRow';
 import { PavilionTable } from './components/PavilionTable';
+import { SiteOverview } from './components/SiteOverview';
 import { SiteWaitChart } from './components/SiteWaitChart';
 import { pool, usePoll } from './hooks';
 import { type SimState, simulateVisitors } from './simulate';
@@ -122,6 +123,7 @@ export default function App() {
         <Briefing bump={briefBump} />
         <KpiRow stats={stats.data} crowd={crowd.data} />
         <SiteWaitChart history={history.data} />
+        {site && <SiteOverview site={site} crowd={crowdById} stats={stats.data} history={history.data} />}
         {site ? (
           <PavilionTable pavilions={site.pavilions} crowd={crowdById} stats={stats.data} forecasts={forecasts} history={history.data} />
         ) : (

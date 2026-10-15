@@ -49,6 +49,17 @@ const AR = {
   trendDown: 'انخفض {n} د خلال {m} دقيقة',
   trendEst: ' (تقديري)',
 
+  mapTitle: 'خريطة الموقع',
+  mapSub: 'كل نقطة جناح، ولونها حسب الانتظار الآن',
+  mapTipQueue: '{n} في الطابور',
+  distTitle: 'المناطق',
+  distAvg: 'متوسط الانتظار',
+  distHottest: 'الأعلى: {name} ({n} د)',
+  distRouted: 'موجّهون خلال ساعتين: {n}',
+  distCounts: '{high} مزدحم · {medium} متوسط · {low} منخفض',
+  distTrendUp: '▲{n} د',
+  distTrendDown: '▼{n} د',
+
   min: '{n} د',
   low: 'منخفض',
   medium: 'متوسط',

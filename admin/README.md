@@ -4,6 +4,7 @@ The operator's view for the pitch: web only (Vite + React + TypeScript), Arabic,
 
 - **AI briefing (ملخص الذكاء الاصطناعي):** a headline and up to 5 ranked points (عاجل / انتبه / جيد / معلومة), each with an action. Five quick picks: نظرة عامة، أين الازدحام؟، الساعة القادمة، ماذا أفعل الآن؟، أداء التوازن. Claude writes it from numbers the server computed (waits now vs 30 min ago and vs normal for the hour, the forecast, the ledger, offers). Without `ANTHROPIC_API_KEY` on the server, rules write it from the same numbers ("ملخص تلقائي").
 - **Site wait chart:** the average wait over the last 2 hours (solid; dotted where estimated after a server restart) and the model's forecast for the next 90 minutes (dashed). Hover for exact values.
+- **Site map + districts:** the mobile app's illustrated map with one dot per pavilion (colour = status, number = wait now; busy ones pulse). Next to it, one card per district: average wait, how many pavilions are busy, the busiest pavilion, visitors routed there in the next 2 h, and ▲/▼ vs 30 min ago. Hover a district to highlight its pavilions; hover a dot for its numbers. The map image and positions are copied from `app/` (`public/map/expo-site.png`, `src/mapLayout.ts`).
 - **KPI tiles:** minutes of waiting saved, visitors on site, reroute offers (sent / accepted), average wait now.
 - **Pavilions table:**
   - the live wait and queue at every pavilion, with ▲/▼ and the minutes it changed since 30 minutes ago (hover for details);
@@ -40,6 +41,7 @@ To run the local backend, from the repo root: `python -m uvicorn api.main:app --
 | KPI tiles and ledger columns | `GET /admin/stats` (new, read-only; see `contract/README.md`) | 5 s, or 2 s while simulating |
 | AI briefing (top card) | `GET /admin/insights?focus=…` (new, read-only) | 60 s, on a chip click, on تحديث, and right after a spike, reset or simulation |
 | Site wait chart, trend arrows (▲/▼ vs 30 min ago) | `GET /admin/history` (new, read-only) | 60 s, and right after a spike, reset or simulation |
+| Site map, district cards | `/crowd`, `/pavilions` (district, x/y), `/admin/stats`, `/admin/history`. No new endpoint | with those |
 
 If the server doesn't have `/admin/stats` yet (Render before `app` is merged into `main`), the KPI tiles show "—" and the ledger stays empty. Everything else still works.
 

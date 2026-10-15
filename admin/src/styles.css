@@ -209,6 +209,58 @@ button, input, select { font: inherit; color: inherit; }
 .chart-tip span { color: var(--mint); font-size: 11px; }
 .chart-empty { padding-top: 80px; text-align: center; }
 
+/* ---------- site map + districts ---------- */
+.site-row { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.site-row > .card { margin-top: 16px; }
+.map-card h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.card-sub { font-size: 12.5px; margin-top: 2px; }
+.map-box { position: relative; margin: 10px -8px 0; }
+.map-box svg { display: block; width: 100%; height: auto; border-radius: 12px; }
+.map-dot { cursor: default; transition: opacity 0.2s; }
+.map-dot.dim { opacity: 0.22; }
+.map-dot .hit { fill: transparent; }
+.map-dot .disc { stroke-width: 2.5; }
+.map-dot text { font-size: 11px; font-weight: 700; font-family: var(--font-num); pointer-events: none; }
+.map-dot.st-low .disc { fill: var(--low-bg); stroke: var(--low); }
+.map-dot.st-low text { fill: var(--low-text); }
+.map-dot.st-medium .disc { fill: var(--mod-bg); stroke: var(--mod); }
+.map-dot.st-medium text { fill: var(--mod-text); }
+.map-dot.st-high .disc { fill: var(--high-bg); stroke: var(--high); }
+.map-dot.st-high text { fill: var(--high-text); }
+.map-dot.on .disc { stroke-width: 4; }
+.map-dot .pulse { fill: none; stroke: var(--high); stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: pulse 1.8s ease-out infinite; }
+@keyframes pulse { from { transform: scale(1); opacity: 0.7; } to { transform: scale(1.9); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .map-dot .pulse { animation: none; opacity: 0; } }
+.map-tip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 18px));
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 2;
+}
+.map-tip strong { font-size: 13px; }
+.districts { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 14px; }
+.card.district { padding: 12px 16px; cursor: default; border: 2px solid transparent; transition: border-color 0.15s; }
+.card.district.on { border-color: var(--aqua); }
+.district-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.district-head h3 { font-size: 15px; font-weight: 700; }
+.district-avg { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; }
+.seg { display: flex; gap: 2px; height: 6px; margin-top: 10px; border-radius: 3px; overflow: hidden; background: var(--line-soft); }
+.seg i { display: block; min-width: 4px; }
+.seg-high { background: var(--high); }
+.seg-medium { background: var(--mod); }
+.seg-low { background: var(--low); }
+.district-line { font-size: 12.5px; margin-top: 4px; }
+
 /* ---------- status pill ---------- */
 .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .pill-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
@@ -319,6 +371,8 @@ button, input, select { font: inherit; color: inherit; }
 
 /* ---------- smaller screens ---------- */
 @media (max-width: 900px) {
+  .site-row { grid-template-columns: minmax(0, 1fr); }
+  .map-box { max-width: 440px; margin-inline: auto; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi.hero { grid-column: span 2; }
 }
