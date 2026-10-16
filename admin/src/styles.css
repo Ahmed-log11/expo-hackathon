@@ -658,7 +658,8 @@ button.ev-row:hover { background: var(--mint-soft); }
   .brand-sep { display: none; }
   .districts, .site-row > .districts { grid-template-columns: minmax(0, 1fr); }
   .brief-items { grid-template-columns: minmax(0, 1fr); }
-  .brief-items > li, .brief-items[data-count] > li { grid-column: 1 / -1; }
+  /* :nth-child(n) so this beats the desktop "span 3" rule above; a span would add hidden columns */
+  .brief-items > li, .brief-items[data-count] > li, .brief-items[data-count] > li:nth-child(n) { grid-column: 1 / -1; }
   .kpi.hero .kpi-value { font-size: 38px; }
   .dock-inner { padding: 12px 16px 14px; padding-inline-end: 48px; gap: 18px; }
 }
