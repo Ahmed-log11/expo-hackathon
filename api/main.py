@@ -124,7 +124,7 @@ async def crowd_loop() -> None:
 
 
 SIM_VISITORS = int(os.getenv("SIM_VISITORS", "2000"))   # simulated visitors per day (0 = empty Expo)
-SIM_GROUP = int(os.getenv("SIM_GROUP", "50"))           # people each one stands for
+SIM_GROUP = int(os.getenv("SIM_GROUP", "1"))           # people each one stands for
 SIM_DAYS = int(os.getenv("SIM_DAYS", "2"))              # today and tomorrow (plans can be for tomorrow)
 sim_state = {"days": [], "bots_per_day": 0}
 
